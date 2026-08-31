@@ -2,7 +2,7 @@
  * 냉장·냉동 (온도대) 제약 E2E
  * 적재 호환성 · 칸별 한도 · 하역 가산 · 냉동 우선 · 배차 분리 · CSV 왕복을 검증한다.
  */
-import { chromium } from 'playwright';
+import { launchChromium } from './_browser.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,7 +19,7 @@ const srv = http.createServer((q, r) => {
 await new Promise((r) => srv.listen(4610, r));
 
 const R = []; const check = (n, ok, d = '') => { R.push(ok); console.log(`${ok ? '✅' : '❌'} ${n}${d ? ' — ' + d : ''}`); };
-const browser = await chromium.launch();
+const browser = await launchChromium();
 const pg = await browser.newPage({ viewport: { width: 1600, height: 950 } });
 const errs = []; pg.on('pageerror', (e) => errs.push(e.message));
 await pg.route('**/dapi.kakao.com/**', (r) => r.abort());
@@ -150,7 +150,7 @@ check('CSV 온도대별 열 파싱', !csvZone.err && csvZone.n === 15
 
 /* --- 11. CSV: 단일 온도대 열 (온도대 + 중량) --- */
 const csvSingle = await pg.evaluate(async () => {
-  const t = await (await fetch('/samples/sample-stops-%EB%8B%A8%EC%9D%BC%EC%98%A8%EB%8F%84%EB%8C%80.csv')).text();
+  const t = await (await fetch('/samples/sample-stops-single-zone.csv')).text();
   const r = window.__parseStopCsv(t);
   const stops = r.rows.map((x) => window.__normalizeStop(x));
   return { err: r.error, n: r.rows.length,

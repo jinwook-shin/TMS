@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { launchChromium } from './_browser.mjs';
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
 const ROOT = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
 const srv=http.createServer((q,r)=>{const p=path.join(ROOT,q.url==='/'?'index.html':q.url.split('?')[0]);
@@ -30,7 +30,7 @@ const SDK_MOCK = `(function(){
     services:{Geocoder:Geocoder, Places:Places, Status:{OK:'OK',ZERO_RESULT:'ZERO'}} }};
 })();`;
 
-const b=await chromium.launch(); const pg=await b.newPage({viewport:{width:1600,height:950}});
+const b = await launchChromium(); const pg=await b.newPage({viewport:{width:1600,height:950}});
 const errs=[]; pg.on('pageerror',e=>errs.push(e.message)); pg.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
 await pg.route('**/dapi.kakao.com/**', r=>r.fulfill({status:200,contentType:'text/javascript',body:SDK_MOCK}));
 

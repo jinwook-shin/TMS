@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { launchChromium } from './_browser.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,7 +14,7 @@ const server = http.createServer((req,res)=>{
 });
 await new Promise(r=>server.listen(4173, r));
 
-const browser = await chromium.launch();
+const browser = await launchChromium();
 const page = await browser.newPage({ viewport:{width:1600,height:950} });
 
 const errors = [], warns = [];

@@ -2,7 +2,7 @@
  * 개발 서버 + 설정 마법사 E2E
  * 실제 카카오 서버 대신 모의 업스트림을 세워, 키 입력 → 검증 흐름 전체를 확인한다.
  */
-import { chromium } from 'playwright';
+import { launchChromium } from './_browser.mjs';
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -111,7 +111,7 @@ try {
     `HTTP ${await rawStatus('evil.example.com')}`);
   check('F4 정상 Host 는 통과', await rawStatus(`localhost:${PORT}`) === 200);
 
-  const browser = await chromium.launch();
+  const browser = await launchChromium();
   const pg = await browser.newPage({ viewport: { width: 1600, height: 950 } });
   const errs = []; pg.on('pageerror', (e) => errs.push(e.message));
   await pg.route('**/dapi.kakao.com/**', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: SDK_OK }));

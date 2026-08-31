@@ -1,5 +1,5 @@
-import { chromium } from 'playwright';
-const b = await chromium.launch();
+import { launchChromium } from './_browser.mjs';
+const b = await launchChromium();
 const pg = await b.newPage({ viewport:{width:1600,height:950} });
 const errs=[]; pg.on('pageerror',e=>errs.push(e.message)); pg.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
 await pg.route('**/dapi.kakao.com/**', r=>r.abort());   // 앱키 없음 = 실제 상황
