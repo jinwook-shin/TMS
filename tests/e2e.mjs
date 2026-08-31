@@ -157,7 +157,9 @@ check('단일 차량 TSP 모드', tsp.routes === 1 && tsp.stops === tsp.total, J
 const withC = await page.evaluate(() => window.__RT.solution.routes.reduce((a,r)=>a+r.m.distance,0));
 await page.click('.tab[data-tab="options"]');
 await page.evaluate(() => {
-  ['optTimeWindow','optCapacity','optFixedOrder','optMaxDuration'].forEach(id=>{
+  // 온도대 제약(냉동 우선·혼적 금지 등)도 꺼야 순수 거리 기준선이 된다
+  ['optTimeWindow','optCapacity','optFixedOrder','optMaxDuration',
+   'optTemperature','optFrozenFirst','optStrictMix','optZoneSeparation'].forEach(id=>{
     const n=document.querySelector('#'+id); n.checked=false; n.dispatchEvent(new Event('change'));
   });
 });
@@ -244,7 +246,7 @@ check('R5 삭제 후 새로고침에도 샘플 미복원', afterReload === '0', 
 await page.evaluate(() => { window.__loadSample(); });
 await page.click('.tab[data-tab="options"]');
 await page.evaluate(() => {
-  ['optTimeWindow','optCapacity','optFixedOrder','optMaxDuration'].forEach(id=>{
+  ['optTimeWindow','optCapacity','optFixedOrder','optMaxDuration','optTemperature'].forEach(id=>{
     const n=document.querySelector('#'+id); n.checked=true; n.dispatchEvent(new Event('change'));
   });
   window.__S.settings.distMode='straight';

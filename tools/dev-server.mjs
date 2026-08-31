@@ -30,6 +30,9 @@ const UPSTREAM = 'https://apis-navi.kakaomobility.com';
 const DEFAULT_PORT = Number(process.env.PORT || 3000);
 const MAX_PORT_TRIES = 20;
 
+/** 이 서버가 응답할 Host 값 — DNS 리바인딩으로 사설 IP 를 겨눈 요청을 막는다 */
+const LOCAL_HOST_RE = /^(localhost|127\.0\.0\.1|\[::1\]|::1)(:\d+)?$/i;
+
 /** 중계를 허용하는 업스트림 경로 (tools/kakao-proxy.mjs 와 동일하게 유지) */
 const ALLOWED_API_PATHS = new Set([
   '/v1/directions',
@@ -147,6 +150,15 @@ function readBody(req, limit = 2 * 1024 * 1024) {
 let actualPort = DEFAULT_PORT;
 
 async function handle(req, res) {
+  // DNS 리바인딩 방어 — 공격자 도메인이 이 서버를 가리키게 해도 Host 가 다르면 거부한다
+  if (!LOCAL_HOST_RE.test(req.headers.host || '')) {
+    sendJson(res, 403, {
+      error: 'BAD_HOST',
+      message: `허용되지 않은 Host 입니다: ${req.headers.host}. localhost 로 접속하세요.`,
+    });
+    return;
+  }
+
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname;
 
@@ -167,6 +179,25 @@ async function handle(req, res) {
 
   /* --- 같은 오리진 길찾기 프록시 --- */
   if (pathname.startsWith('/v1/')) {
+    // 이 프록시는 **이 서버가 서빙한 페이지 전용**이다.
+    // 오리진이 없으면(같은 출처 fetch) 통과, 있으면 자기 자신일 때만 통과시킨다.
+    // 이렇게 하지 않으면 사용자가 열어 둔 아무 웹페이지나 REST 키 쿼터를 소모할 수 있다.
+    const origin = req.headers.origin;
+    if (origin) {
+      let sameOrigin = false;
+      try {
+        const o = new URL(origin);
+        sameOrigin = LOCAL_HOST_RE.test(o.host) && o.port === String(actualPort);
+      } catch { sameOrigin = false; }
+      if (!sameOrigin) {
+        console.warn(`  거부된 오리진: ${origin}`);
+        sendJson(res, 403, {
+          error: 'ORIGIN_NOT_ALLOWED',
+          message: `이 프록시는 개발 서버가 서빙한 페이지에서만 호출할 수 있습니다 (요청 오리진: ${origin}).`,
+        });
+        return;
+      }
+    }
     if (!ALLOWED_API_PATHS.has(pathname)) {
       sendJson(res, 404, {
         error: 'NOT_ALLOWED',

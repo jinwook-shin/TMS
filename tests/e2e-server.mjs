@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -63,8 +64,12 @@ await new Promise((r) => upstream.listen(4511, r));
 /* --- 개발 서버 기동 (업스트림을 모의 서버로 돌려놓고) --- */
 const serverFile = path.join(ROOT, 'tools/dev-server.mjs');
 const patched = path.join(ROOT, 'tools/.dev-server.test.mjs');
+// 개발자의 실제 .env 에 영향받지 않도록 테스트 전용 env 경로로 갈아끼운다.
+// (이 테스트는 REST 키가 서버에 "없는" 상태를 전제로 3단계 입력란을 검사한다)
+const testEnv = path.join(os.tmpdir(), `tms-test-env-${process.pid}`);
 fs.writeFileSync(patched, fs.readFileSync(serverFile, 'utf8')
-  .replace("const UPSTREAM = 'https://apis-navi.kakaomobility.com';", "const UPSTREAM = 'http://127.0.0.1:4511';"));
+  .replace("const UPSTREAM = 'https://apis-navi.kakaomobility.com';", "const UPSTREAM = 'http://127.0.0.1:4511';")
+  .replace("const envFile = path.join(ROOT, '.env');", `const envFile = ${JSON.stringify(testEnv)};`));
 
 const proc = spawn(process.execPath, [patched], { cwd: ROOT, env: { ...process.env, PORT: String(PORT) }, stdio: 'pipe' });
 let bootLog = '';
@@ -72,7 +77,14 @@ proc.stdout.on('data', (d) => { bootLog += d.toString(); });
 proc.stderr.on('data', (d) => { bootLog += d.toString(); });
 await new Promise((r) => setTimeout(r, 1400));
 
-const cleanup = () => { try { proc.kill(); } catch {} try { fs.unlinkSync(patched); } catch {} try { fs.unlinkSync(path.join(ROOT, '.env')); } catch {} upstream.close(); };
+// 이 테스트는 .env 를 만들지 않는다. 지우면 개발자의 실제 REST 키 파일이 날아간다.
+// 개발자의 실제 .env 는 절대 건드리지 않는다 — 테스트 전용 임시 파일만 정리한다
+const cleanup = () => {
+  try { proc.kill(); } catch {}
+  try { fs.unlinkSync(patched); } catch {}
+  try { fs.unlinkSync(testEnv); } catch {}
+  upstream.close();
+};
 
 try {
   check('개발 서버 기동 + 등록 도메인 안내 출력',
@@ -80,6 +92,24 @@ try {
 
   const st = await (await fetch(`http://localhost:${PORT}/__status`)).json();
   check('/__status 응답', st.server === 'tms-dev-server' && st.port === PORT, JSON.stringify({ port: st.port, hasRestKey: st.hasRestKey }));
+  check('실제 .env 와 격리됨 (서버에 키 없음 상태)', st.hasRestKey === false, `hasRestKey=${st.hasRestKey}`);
+
+  // F4. /v1/* 이 외부 오리진에서 호출되면 거부되는가 (REST 키 쿼터 보호)
+  const foreign = await fetch(`http://localhost:${PORT}/v1/directions?origin=127,37&destination=127.1,37.1`,
+    { headers: { Origin: 'https://evil.example.com' } });
+  check('F4 외부 오리진의 길찾기 호출 차단', foreign.status === 403, `HTTP ${foreign.status}`);
+
+  // F4. DNS 리바인딩 방어 — Host 가 localhost 가 아니면 거부.
+  // fetch 는 Host 를 금지 헤더로 취급해 무시하므로 http.request 로 직접 보낸다.
+  const rawStatus = (host) => new Promise((resolve) => {
+    const r = http.request({ host: '127.0.0.1', port: PORT, path: '/__status', method: 'GET', headers: { Host: host } },
+      (res) => { res.resume(); resolve(res.statusCode); });
+    r.on('error', () => resolve('ERR'));
+    r.end();
+  });
+  check('F4 허용되지 않은 Host 차단 (DNS 리바인딩)', await rawStatus('evil.example.com') === 403,
+    `HTTP ${await rawStatus('evil.example.com')}`);
+  check('F4 정상 Host 는 통과', await rawStatus(`localhost:${PORT}`) === 200);
 
   const browser = await chromium.launch();
   const pg = await browser.newPage({ viewport: { width: 1600, height: 950 } });
@@ -120,6 +150,7 @@ try {
   check('2단계 정상 키 통과 + 저장', good.s === 'ok' && good.key === 'TEST_JS_KEY_0000' && good.sdk, JSON.stringify(good));
 
   /* 3단계: 잘못된 REST 키 → 업스트림 401 이 사용자에게 전달되는가 */
+  await pg.waitForSelector('#wizRestKey', { timeout: 10000 });
   await pg.fill('#wizRestKey', 'WRONG_KEY');
   await pg.evaluate(() => window.__checkNaviKey());
   await pg.waitForFunction(() => document.querySelector('#wizNavi').dataset.state !== 'checking', null, { timeout: 20000 });

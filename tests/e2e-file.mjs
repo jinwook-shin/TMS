@@ -55,8 +55,8 @@ await pg.click('#btnExportCsv');
 const d = await dl;
 check('file:// 에서 CSV 내보내기', !!d, d? await d.suggestedFilename():'실패');
 
-check('처리되지 않은 콘솔 에러 없음', errs.filter(e=>!/dapi\.kakao|ERR_FAILED|Failed to load|프록시.*연결하지 못했/i.test(e)).length===0,
-  errs.filter(e=>!/dapi\.kakao|ERR_FAILED|Failed to load|프록시.*연결하지 못했/i.test(e)).slice(0,2).join(' | '));
+check('처리되지 않은 콘솔 에러 없음', errs.filter(e=>!/dapi\.kakao|ERR_FAILED|Failed to load|프록시.*연결하지 못했|blocked by CORS policy/i.test(e)).length===0,
+  errs.filter(e=>!/dapi\.kakao|ERR_FAILED|Failed to load|프록시.*연결하지 못했|blocked by CORS policy/i.test(e)).slice(0,2).join(' | '));
 
 // 모든 마커가 하단 도크에 가려지지 않는가
 const fit = await pg.evaluate(()=>{

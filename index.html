@@ -420,6 +420,47 @@ table{border-collapse:collapse;width:100%}
 .tl-tooltip dd{margin:0;font-variant-numeric:tabular-nums;text-align:right}
 
 /* ==========================================================================
+   9-2. 온도대 (상온 → 냉장 → 냉동)
+   --------------------------------------------------------------------------
+   "차가움"은 순서형 척도이므로 단색(파랑) 램프를 밝음→어두움으로 쓴다.
+   상온은 냉기가 0이라 중립 회색. 색만으로 구분하지 않도록 항상 라벨을 붙인다.
+   ========================================================================== */
+.zone-chip{
+  display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:20px;
+  font-size:10px;font-weight:600;white-space:nowrap;line-height:1.6;
+}
+.zone-chip[data-zone="ambient"]{background:#f1f2f4;color:#52514e;box-shadow:inset 0 0 0 1px #e2e6ec}
+.zone-chip[data-zone="chilled"]{background:#dcebfb;color:#184f95}
+.zone-chip[data-zone="frozen"] {background:#184f95;color:#fff}
+.zone-chip .zone-ico{font-size:9px;opacity:.85}
+
+.zone-grid{display:grid;grid-template-columns:64px 1fr 1fr 1fr;gap:5px;align-items:center}
+.zone-grid > .zg-head{font-size:10px;font-weight:700;color:var(--text-3);text-align:center;letter-spacing:.03em}
+.zone-grid > .zg-label{font-size:11.5px;font-weight:600}
+.zone-grid input{
+  width:100%;padding:5px 7px;border:1px solid var(--line-strong);border-radius:6px;
+  font-size:11.5px;text-align:right;font-variant-numeric:tabular-nums;background:var(--surface-1);
+}
+.zone-grid input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.zone-total{
+  display:grid;grid-template-columns:64px 1fr 1fr 1fr;gap:5px;margin-top:6px;padding-top:6px;
+  border-top:1px solid var(--line);font-size:11.5px;font-weight:700;
+}
+.zone-total > span:not(:first-child){text-align:right;font-variant-numeric:tabular-nums;padding-right:8px}
+
+.veh-zone-row{
+  display:grid;grid-template-columns:auto 60px 1fr 1fr 1fr;gap:5px;align-items:center;
+  padding:5px 0;border-top:1px solid var(--line);
+}
+.veh-zone-row:first-of-type{border-top:none}
+.veh-zone-row input[type="number"]{
+  width:100%;padding:4px 6px;border:1px solid var(--line-strong);border-radius:5px;
+  font-size:11px;text-align:right;font-variant-numeric:tabular-nums;
+}
+.veh-zone-row input[type="number"]:disabled{background:var(--surface-3);color:var(--text-3)}
+.veh-zone-row input[type="checkbox"]{width:14px;height:14px;accent-color:var(--accent);cursor:pointer}
+
+/* ==========================================================================
    10-2. 설정 마법사
    ========================================================================== */
 .wiz{display:flex;flex-direction:column;gap:8px}
@@ -671,6 +712,30 @@ details#advSettings[open] > summary{margin-bottom:2px}
         </div>
 
         <div class="section">
+          <h3 class="section-title">냉장 · 냉동 (온도대)</h3>
+          <div class="card" style="padding:2px 12px">
+            <label class="switch"><input type="checkbox" id="optTemperature" checked><span class="switch-track"></span>
+              <span class="switch-text"><b>온도대 제약 적용</b><span>차량이 실을 수 있는 온도대와 칸별 적재 한도를 지킵니다</span></span></label>
+            <label class="switch"><input type="checkbox" id="optStrictMix" checked><span class="switch-track"></span>
+              <span class="switch-text"><b>혼적 금지 정책</b><span>허용하지 않은 온도대를 싣는 배차를 강하게 배제합니다</span></span></label>
+            <label class="switch"><input type="checkbox" id="optFrozenFirst" checked><span class="switch-track"></span>
+              <span class="switch-text"><b>냉동 우선 배송</b><span>냉동 물량이 있는 납품처를 앞순번으로 — 품온 상승 위험 최소화</span></span></label>
+            <label class="switch"><input type="checkbox" id="optZoneSeparation"><span class="switch-track"></span>
+              <span class="switch-text"><b>온도대별 배차 분리</b><span>가능하면 한 차량이 한 온도대만 담당하도록 유도 (하역·관리 단순화)</span></span></label>
+          </div>
+          <div class="card">
+            <div class="field" style="margin-bottom:0">
+              <label for="optZoneBonus">온도대별 하역 가산</label>
+              <div class="row">
+                <input class="input tnum" id="optZoneBonus" type="number" min="0" max="60" step="1" value="5" style="max-width:90px" />
+                <span style="font-size:11px;color:var(--text-3)">분 / 온도대 추가 1개당</span>
+              </div>
+              <p class="hint">한 납품처에 상온·냉장·냉동이 함께 나가면 분리 하역으로 시간이 더 걸립니다. 온도대가 2개면 +1배, 3개면 +2배가 하역시간에 더해집니다.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
           <h3 class="section-title">탐색 설정</h3>
           <div class="card">
             <label class="switch" style="padding-top:0"><input type="checkbox" id="optDeterministic" checked><span class="switch-track"></span>
@@ -864,12 +929,33 @@ details#advSettings[open] > summary{margin-bottom:2px}
         <div class="field"><label for="fLng">경도 *</label><input class="input tnum" id="fLng" type="number" step="0.000001" /></div>
       </div>
 
-      <h4 class="section-title" style="margin-top:14px">물량</h4>
-      <div class="grid-3">
-        <div class="field"><label for="fWeight">중량 (kg)</label><input class="input tnum" id="fWeight" type="number" min="0" step="1" /></div>
-        <div class="field"><label for="fVolume">부피 (CBM)</label><input class="input tnum" id="fVolume" type="number" min="0" step="0.1" /></div>
-        <div class="field"><label for="fBoxes">박스 (개)</label><input class="input tnum" id="fBoxes" type="number" min="0" step="1" /></div>
+      <h4 class="section-title" style="margin-top:14px">온도대별 물량</h4>
+      <div class="zone-grid">
+        <span></span>
+        <span class="zg-head">중량 (kg)</span>
+        <span class="zg-head">부피 (CBM)</span>
+        <span class="zg-head">박스 (개)</span>
+
+        <span class="zg-label"><span class="zone-chip" data-zone="ambient"><span class="zone-ico">☀</span>상온</span></span>
+        <input id="fAmbientW" type="number" min="0" step="1" placeholder="0" />
+        <input id="fAmbientV" type="number" min="0" step="0.1" placeholder="0" />
+        <input id="fAmbientB" type="number" min="0" step="1" placeholder="0" />
+
+        <span class="zg-label"><span class="zone-chip" data-zone="chilled"><span class="zone-ico">❄</span>냉장</span></span>
+        <input id="fChilledW" type="number" min="0" step="1" placeholder="0" />
+        <input id="fChilledV" type="number" min="0" step="0.1" placeholder="0" />
+        <input id="fChilledB" type="number" min="0" step="1" placeholder="0" />
+
+        <span class="zg-label"><span class="zone-chip" data-zone="frozen"><span class="zone-ico">❅</span>냉동</span></span>
+        <input id="fFrozenW" type="number" min="0" step="1" placeholder="0" />
+        <input id="fFrozenV" type="number" min="0" step="0.1" placeholder="0" />
+        <input id="fFrozenB" type="number" min="0" step="1" placeholder="0" />
       </div>
+      <div class="zone-total">
+        <span>합계</span>
+        <span id="fTotalW">0</span><span id="fTotalV">0</span><span id="fTotalB">0</span>
+      </div>
+      <p class="hint">쓰지 않는 온도대는 비워 두세요. 온도대가 여러 개면 하역 가산이 자동 적용됩니다.</p>
 
       <h4 class="section-title" style="margin-top:14px">시간 제약</h4>
       <div class="grid-3">
@@ -918,10 +1004,11 @@ details#advSettings[open] > summary{margin-bottom:2px}
       <div class="field">
         <span class="field-label">인식 가능한 열 이름</span>
         <p class="hint" style="margin-top:0">
-          <code>납품처명</code>/<code>거래처</code>/<code>name</code> · <code>주소</code>/<code>address</code> ·
-          <code>위도</code>/<code>lat</code> · <code>경도</code>/<code>lng</code> · <code>중량</code>/<code>kg</code> ·
-          <code>부피</code>/<code>cbm</code> · <code>박스</code> · <code>납품시작</code> · <code>납품종료</code> ·
-          <code>하역분</code> · <code>우선순위</code> · <code>고정</code>
+          <code>납품처명</code> · <code>주소</code> · <code>위도</code> · <code>경도</code> ·
+          <code>납품시작</code> · <code>납품종료</code> · <code>하역분</code> · <code>우선순위</code> · <code>고정</code>
+          <br><b style="color:var(--text-2)">온도대</b> — 섞여 나가면
+          <code>상온중량</code>/<code>냉장중량</code>/<code>냉동중량</code>(부피·박스도 동일) 열을 쓰고,
+          납품처당 온도대가 하나면 <code>온도대</code> 열 + <code>중량</code>/<code>부피</code>/<code>박스</code> 로 쓰세요.
         </p>
       </div>
       <div class="field">
@@ -1026,6 +1113,17 @@ function routeStyle(rt) {
   return vehicleStyle(gi >= 0 ? gi : rt.vehIdx);
 }
 
+/** 온도대 — 상온 → 냉장 → 냉동 순서는 "차가움"의 순서형 척도다.
+ *  칩 색도 이 순서를 따라 밝음→어두움으로 간다 (단색 순서형 램프). */
+const ZONES = [
+  { key: 'ambient', name: '상온', icon: '☀', csv: ['상온', 'ambient', '실온', '常溫'] },
+  { key: 'chilled', name: '냉장', icon: '❄', csv: ['냉장', 'chilled', 'chill', '冷藏'] },
+  { key: 'frozen',  name: '냉동', icon: '❅', csv: ['냉동', 'frozen', 'freeze', '冷凍'] },
+];
+const ZONE_KEYS = ZONES.map((z) => z.key);
+const zoneName = (k) => (ZONES.find((z) => z.key === k) || {}).name || k;
+const emptyZoneLoad = () => ({ ambient: { w: 0, v: 0, b: 0 }, chilled: { w: 0, v: 0, b: 0 }, frozen: { w: 0, v: 0, b: 0 } });
+
 /** 비용 페널티 (미터 환산) */
 const PENALTY = {
   latePerMin:      3000,
@@ -1038,6 +1136,11 @@ const PENALTY = {
   precedence:      20000,
   unassigned:    2000000,
   imbalance:           2,  // × (경로거리 - 평균) 편차
+  zoneIncompatible: 500000, // 차량이 실을 수 없는 온도대
+  zoneSeparation:    30000, // 온도대별 배차 분리 위반 (경로당 추가 온도대 1개)
+  // 역전 "쌍"으로 세면 O(n²)로 커져 시간창 지각이나 온도대 부적합을 눌러버린다.
+  // 탐색 기울기는 쌍 단위가 좋으므로 세는 방식은 유지하되 단가를 낮춰 균형을 맞춘다.
+  frozenOrder:         800, // 냉동 우선 배송 위반 (역전 쌍당)
 };
 
 const SEC_TO_METER = 10;          // 소요시간 목적함수 환산 (1초 ≒ 10m ≒ 36km/h)
@@ -1170,11 +1273,19 @@ function closeModal(id) { $('#' + id).hidden = true; }
  * ========================================================================== */
 
 function defaultVehicle(i) {
-  return {
+  return normalizeVehicle({
     id: uid('veh'), name: `${i + 1}호차`,
     capWeight: 2000, capVolume: 8, capBoxes: 120,
     start: '06:00', end: '18:00', maxMinutes: 480, enabled: true,
-  };
+    compartments: true,
+    zones: {
+      // 상온칸은 차량 총량과 같게 둔다. 온도대 정보가 없는 구버전 데이터는 전부 상온으로
+      // 들어오므로, 상온칸을 좁게 잡으면 예전엔 되던 배차가 갑자기 위반으로 바뀐다.
+      ambient: { allowed: true, capWeight: 2000, capVolume: 8,   capBoxes: 120 },
+      chilled: { allowed: true, capWeight: 1200, capVolume: 4.5, capBoxes: 70 },
+      frozen:  { allowed: true, capWeight: 600,  capVolume: 2.0, capBoxes: 35 },
+    },
+  });
 }
 
 function defaultState() {
@@ -1182,6 +1293,8 @@ function defaultState() {
     settings: {
       jsKey: '', restKey: '', proxyUrl: 'http://localhost:8787',
       distMode: 'road', transport: 'same-origin', detour: 1.35,
+      // 사용자가 호출 경로를 직접 고르면 false — 그 뒤로는 자동 전환하지 않는다
+      transportAuto: true,
     },
     depot: { name: '중앙 물류센터', addr: '서울 송파구 양재대로 932', lat: 37.4926, lng: 127.1183 },
     vehicles: [defaultVehicle(0), defaultVehicle(1), defaultVehicle(2)],
@@ -1192,6 +1305,12 @@ function defaultState() {
       useServiceTime: true, useMaxDuration: true, returnToDepot: true,
       allowWait: true, balance: false,
       timeLimitMs: 4000, seed: 20260831, speedKmh: 30, deterministic: true,
+      // 온도대 (냉장·냉동)
+      useTemperature: true,     // 온도대 적재 호환성·칸별 한도
+      zoneServiceBonus: 5,      // 온도대 추가 1개당 하역 가산(분)
+      frozenFirst: true,        // 냉동 물량이 있는 납품처를 앞순번으로
+      strictMix: true,          // 혼적 금지 — 허용 온도대 밖 적재를 강하게 배제
+      zoneSeparation: false,    // 가능하면 한 차량이 한 온도대만 담당
     },
   };
 }
@@ -1235,6 +1354,28 @@ function loadState() {
   } catch (e) { console.warn('상태 로드 실패', e); return false; }
 }
 
+/**
+ * 차량의 온도대 사양.
+ *   allowed  — 이 온도대를 실을 수 있는가
+ *   cap*     — 칸막이차일 때 그 칸의 한도 (0 이면 무제한으로 보고 차량 총량만 본다)
+ * compartments=true 면 칸별 한도를, false 면 차량 총량만 본다.
+ */
+function normalizeVehicleZones(v) {
+  const src = v.zones && typeof v.zones === 'object' ? v.zones : null;
+  const out = {};
+  for (const k of ZONE_KEYS) {
+    const z = src ? (src[k] || {}) : {};
+    out[k] = {
+      // 구버전 차량(온도대 정보 없음)은 모든 온도대를 실을 수 있는 것으로 본다
+      allowed: src ? z.allowed !== false : true,
+      capWeight: Math.max(0, num(z.capWeight, 0)),
+      capVolume: Math.max(0, num(z.capVolume, 0)),
+      capBoxes:  Math.max(0, num(z.capBoxes, 0)),
+    };
+  }
+  return out;
+}
+
 function normalizeVehicle(v) {
   return {
     id: v.id || uid('veh'),
@@ -1242,18 +1383,51 @@ function normalizeVehicle(v) {
     capWeight: num(v.capWeight, 2000), capVolume: num(v.capVolume, 8), capBoxes: num(v.capBoxes, 120),
     start: v.start || '06:00', end: v.end || '18:00',
     maxMinutes: num(v.maxMinutes, 480), enabled: v.enabled !== false,
+    compartments: v.compartments !== false,        // 기본값: 칸막이차
+    zones: normalizeVehicleZones(v),
   };
 }
+
+/** 차량이 실을 수 있는 온도대 목록 */
+const vehicleZones = (veh) => ZONE_KEYS.filter((k) => veh.zones?.[k]?.allowed !== false);
+
+/**
+ * 납품처의 온도대별 물량을 정규화한다.
+ * 구버전 데이터(단일 weight/volume/boxes)는 `zone` 이 있으면 그 온도대로,
+ * 없으면 상온으로 옮긴다 — 기존 저장 데이터와 CSV 를 그대로 읽기 위해서다.
+ */
+function normalizeDemand(s) {
+  const d = emptyZoneLoad();
+  if (s.demand && typeof s.demand === 'object') {
+    for (const k of ZONE_KEYS) {
+      const z = s.demand[k] || {};
+      d[k] = { w: Math.max(0, num(z.w, 0)), v: Math.max(0, num(z.v, 0)), b: Math.max(0, num(z.b, 0)) };
+    }
+    return d;
+  }
+  const target = ZONE_KEYS.includes(s.zone) ? s.zone : 'ambient';
+  d[target] = { w: Math.max(0, num(s.weight, 0)), v: Math.max(0, num(s.volume, 0)), b: Math.max(0, num(s.boxes, 0)) };
+  return d;
+}
+
+/** 물량이 실린 온도대 목록 (표시·제약 판정에 쓰는 파생값) */
+const activeZones = (demand) => ZONE_KEYS.filter((k) => demand[k].w > 0 || demand[k].v > 0 || demand[k].b > 0);
 
 function normalizeStop(s) {
   const lat = num(s.lat, NaN), lng = num(s.lng, NaN);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const demand = normalizeDemand(s);
+  const zones = activeZones(demand);
   return {
     id: s.id || uid('stop'),
     name: String(s.name || '납품처').trim(),
     addr: String(s.addr || '').trim(),
     lat, lng,
-    weight: num(s.weight, 0), volume: num(s.volume, 0), boxes: num(s.boxes, 0),
+    demand, zones,
+    // 파생 합계 — 목록·표·기존 코드가 쓰는 값
+    weight: ZONE_KEYS.reduce((a, k) => a + demand[k].w, 0),
+    volume: ZONE_KEYS.reduce((a, k) => a + demand[k].v, 0),
+    boxes:  ZONE_KEYS.reduce((a, k) => a + demand[k].b, 0),
     twStart: s.twStart || '', twEnd: s.twEnd || '',
     service: num(s.service, 10),
     priority: clamp(num(s.priority, 0), 0, 9),
@@ -1570,6 +1744,11 @@ async function buildMatrix(nodes, onProgress) {
 function decorateNaviError(err) {
   const t = S.settings;
   if (err instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(err.message)) {
+    if (t.transport === 'same-origin') {
+      return new Error(
+        '개발 서버에 연결하지 못했습니다. 터미널에서 node tools/dev-server.mjs 가 아직 실행 중인지 확인하고, '
+        + '창을 닫았다면 다시 실행한 뒤 새로고침하세요.');
+    }
     if (t.transport === 'direct') {
       return new Error(
         '브라우저에서 카카오모빌리티 API를 직접 호출할 수 없습니다 (CORS 차단). ' +
@@ -1626,7 +1805,9 @@ async function fetchRoutePath(nodes, seqNodeIdx) {
 
 function buildContext() {
   const stops = S.stops;
-  const vehicles = S.vehicles.filter((v) => v.enabled);
+  // 정규화를 거치지 않은 차량(JSON 불러오기·구버전 저장 데이터·외부 주입)도 안전하게
+  // 다루기 위해 여기서 한 번 더 정규화한다. 온도대 정보가 없으면 전 온도대 허용으로 본다.
+  const vehicles = S.vehicles.filter((v) => v.enabled).map(normalizeVehicle);
   const nodes = [{ lat: S.depot.lat, lng: S.depot.lng, name: S.depot.name },
                  ...stops.map((s) => ({ lat: s.lat, lng: s.lng, name: s.name }))];
   return {
@@ -1637,6 +1818,8 @@ function buildContext() {
     hasPriority: stops.some((s) => s.priority > 0),
     hasFixed: stops.some((s) => s.fixed),
     hasLock: stops.some((s) => s.vehicle),
+    // 온도대 제약은 실제로 여러 온도대가 쓰일 때만 평가한다 (단일 온도대면 순수 오버헤드)
+    zonesUsed: ZONE_KEYS.filter((k) => stops.some((st) => st.demand[k].w > 0 || st.demand[k].v > 0 || st.demand[k].b > 0)),
   };
 }
 
@@ -1645,7 +1828,8 @@ function evaluateRoute(seq, veh, ctx) {
   const O = ctx.options, D = ctx.matrix.dist, T = ctx.matrix.time, stops = ctx.stops;
   const r = {
     distance: 0, driveMin: 0, serviceMin: 0, waitMin: 0,
-    load: { w: 0, v: 0, b: 0 }, legs: [], violations: [],
+    load: { w: 0, v: 0, b: 0 }, zoneLoad: emptyZoneLoad(), routeZones: [],
+    legs: [], violations: [],
     departMin: 0, endMin: 0, durationMin: 0, base: 0, penalty: 0, cost: 0,
     returnLeg: null,
   };
@@ -1673,7 +1857,11 @@ function evaluateRoute(seq, veh, ctx) {
     if (twe !== null && startSvc > twe) {
       r.violations.push({ type: 'late', stopIdx: si, minutes: startSvc - twe });
     }
-    const svc = O.useServiceTime ? num(st.service, 0) : 0;
+    // 온도대가 여럿이면 분리 하역으로 시간이 더 걸린다
+    const extraZones = Math.max(0, st.zones.length - 1);
+    const zoneBonus = (O.useServiceTime && O.useTemperature)
+      ? extraZones * num(O.zoneServiceBonus, 0) : 0;
+    const svc = O.useServiceTime ? num(st.service, 0) + zoneBonus : 0;
     r.waitMin += wait; r.serviceMin += svc;
     r.legs.push({
       stopIdx: si, legDist, legMin, arrive, wait,
@@ -1681,6 +1869,11 @@ function evaluateRoute(seq, veh, ctx) {
     });
     t = startSvc + svc;
     r.load.w += st.weight; r.load.v += st.volume; r.load.b += st.boxes;
+    for (const zk of st.zones) {
+      r.zoneLoad[zk].w += st.demand[zk].w;
+      r.zoneLoad[zk].v += st.demand[zk].v;
+      r.zoneLoad[zk].b += st.demand[zk].b;
+    }
     if (ctx.hasLock && st.vehicle && st.vehicle !== veh.id) {
       r.violations.push({ type: 'vehicleLock', stopIdx: si });
     }
@@ -1706,7 +1899,7 @@ function evaluateRoute(seq, veh, ctx) {
   }
   r.durationMin = r.endMin - r.departMin;
 
-  /* --- 용량 --- */
+  /* --- 용량 (차량 총량) --- */
   if (O.useCapacity) {
     if (veh.capWeight > 0 && r.load.w > veh.capWeight)
       r.violations.push({ type: 'capacity', kind: '중량', used: r.load.w, cap: veh.capWeight, unit: 'kg', over: r.load.w - veh.capWeight });
@@ -1714,6 +1907,47 @@ function evaluateRoute(seq, veh, ctx) {
       r.violations.push({ type: 'capacity', kind: '부피', used: r.load.v, cap: veh.capVolume, unit: 'CBM', over: r.load.v - veh.capVolume });
     if (veh.capBoxes > 0 && r.load.b > veh.capBoxes)
       r.violations.push({ type: 'capacity', kind: '박스', used: r.load.b, cap: veh.capBoxes, unit: '박스', over: r.load.b - veh.capBoxes });
+  }
+
+  /* --- 온도대: 적재 호환성 + 칸별 한도 --- */
+  if (O.useTemperature && ctx.zonesUsed.length) {
+    for (const zk of ctx.zonesUsed) {
+      const load = r.zoneLoad[zk];
+      if (load.w <= 0 && load.v <= 0 && load.b <= 0) continue;
+      r.routeZones.push(zk);
+
+      const spec = veh.zones?.[zk];
+      if (!spec || spec.allowed === false) {
+        // 이 차량은 해당 온도대를 아예 실을 수 없다
+        r.violations.push({ type: 'zoneIncompatible', zone: zk, load: load.w });
+        continue;
+      }
+      // 칸막이차는 칸별 한도를 본다 (0 은 "칸 한도 없음" — 차량 총량만 적용)
+      if (O.useCapacity && veh.compartments) {
+        if (spec.capWeight > 0 && load.w > spec.capWeight)
+          r.violations.push({ type: 'capacity', zone: zk, kind: `${zoneName(zk)} 중량`, used: load.w, cap: spec.capWeight, unit: 'kg', over: load.w - spec.capWeight });
+        if (spec.capVolume > 0 && load.v > spec.capVolume)
+          r.violations.push({ type: 'capacity', zone: zk, kind: `${zoneName(zk)} 부피`, used: load.v, cap: spec.capVolume, unit: 'CBM', over: load.v - spec.capVolume });
+        if (spec.capBoxes > 0 && load.b > spec.capBoxes)
+          r.violations.push({ type: 'capacity', zone: zk, kind: `${zoneName(zk)} 박스`, used: load.b, cap: spec.capBoxes, unit: '박스', over: load.b - spec.capBoxes });
+      }
+    }
+
+    // 온도대별 배차 분리 — 한 차량이 여러 온도대를 섞어 담당하면 벌점
+    if (O.zoneSeparation && r.routeZones.length > 1) {
+      r.violations.push({ type: 'zoneMixed', count: r.routeZones.length - 1, zones: r.routeZones.slice() });
+    }
+
+    // 냉동 우선 배송 — 냉동 물량이 있는 납품처가 뒤로 밀리면 벌점
+    if (O.frozenFirst && ctx.zonesUsed.includes('frozen')) {
+      let nonFrozenSeen = 0, inversions = 0, lateStops = 0;
+      for (const si of seq) {
+        const isFrozen = stops[si].zones.includes('frozen');
+        if (isFrozen) { if (nonFrozenSeen > 0) lateStops++; inversions += nonFrozenSeen; }
+        else nonFrozenSeen++;
+      }
+      if (inversions > 0) r.violations.push({ type: 'frozenLate', pairs: inversions, stops: lateStops });
+    }
   }
 
   /* --- 운행시간 --- */
@@ -1758,6 +1992,10 @@ function evaluateRoute(seq, veh, ctx) {
       case 'fixedLast':
       case 'vehicleLock':  pen += PENALTY.fixedOrder; break;
       case 'precedence':   pen += PENALTY.precedence; break;
+      // 혼적 금지 정책이 켜져 있으면 실을 수 없는 온도대에 훨씬 무거운 벌점
+      case 'zoneIncompatible': pen += PENALTY.zoneIncompatible * (O.strictMix ? 4 : 1); break;
+      case 'zoneMixed':    pen += PENALTY.zoneSeparation * v.count; break;
+      case 'frozenLate':   pen += PENALTY.frozenOrder * v.pairs; break;
     }
   }
   r.base = O.objective === 'distance' ? r.distance : r.durationMin * 60 * SEC_TO_METER;
@@ -1808,6 +2046,17 @@ function constructSavings(ctx) {
     const l = loadOf(seq);
     return l.w <= maxCap.w && l.v <= maxCap.v && l.b <= maxCap.b;
   };
+
+  // 합친 경로의 온도대를 전부 실을 수 있는 차량이 하나라도 있어야 병합한다.
+  // 없으면 어차피 큰 벌점을 받을 해라 초기해 단계에서 만들지 않는 편이 낫다.
+  const useTemp = ctx.options.useTemperature && ctx.zonesUsed.length > 1;
+  const zoneOK = (seq) => {
+    if (!useTemp) return true;
+    const need = new Set();
+    for (const i of seq) for (const zk of ctx.stops[i].zones) need.add(zk);
+    if (need.size <= 1) return true;
+    return V.some((veh) => [...need].every((zk) => veh.zones?.[zk]?.allowed !== false));
+  };
   // 서로 다른 차량에 묶인 납품처는 같은 경로로 병합하지 않는다
   const lockOK = (a, b) => {
     if (!ctx.hasLock) return true;
@@ -1838,7 +2087,7 @@ function constructSavings(ctx) {
     if (A[A.length - 1] === i && B[0] === j) merged = A.concat(B);
     else if (B[B.length - 1] === j && A[0] === i) merged = B.concat(A);
     else continue;
-    if (!capOK(merged) || !lockOK(A, B)) continue;
+    if (!capOK(merged) || !zoneOK(merged) || !lockOK(A, B)) continue;
     routes[ri] = merged; routes[rj] = null;
     for (const k of merged) routeOf[k] = ri;
   }
@@ -2411,7 +2660,9 @@ function showStopPopup(stopIdx, routeIdx, k) {
     leg ? `<div>도착 <b>${toHHMM(leg.arrive)}</b> → 출발 <b>${toHHMM(leg.depart)}</b></div>` : '',
     leg && leg.wait > 0 ? `<div style="color:#8a6200">대기 ${fmtDur(leg.wait)}</div>` : '',
     (s.twStart || s.twEnd) ? `<div>납품가능 ${esc(s.twStart || '–')} ~ ${esc(s.twEnd || '–')}</div>` : '',
-    `<div>물량 ${fmtInt(s.weight)}kg · ${s.volume}CBM · ${fmtInt(s.boxes)}박스</div>`,
+    s.zones.length
+      ? `<div>물량 ${s.zones.map((zk) => `${zoneName(zk)} ${fmtQty(s.demand[zk].w)}kg`).join(' · ')}</div>`
+      : `<div>물량 ${fmtInt(s.weight)}kg · ${s.volume}CBM · ${fmtInt(s.boxes)}박스</div>`,
     leg ? `<div>구간 ${fmtKm(leg.legDist)} · ${fmtDur(leg.legMin)}</div>` : '',
     '</div>',
   ].filter(Boolean).join('');
@@ -2437,6 +2688,15 @@ function showStopPopup(stopIdx, routeIdx, k) {
   RT.popup.setMap(RT.map);
 }
 
+/** 온도대 칩 — 색 + 아이콘 + 라벨. 색만으로 의미를 전달하지 않는다. */
+function zoneChip(zoneKey, amount) {
+  const z = ZONES.find((x) => x.key === zoneKey);
+  if (!z) return null;
+  return el('span', { class: 'zone-chip', 'data-zone': zoneKey, title: z.name },
+    el('span', { class: 'zone-ico', text: z.icon }),
+    amount === undefined ? z.name : `${z.name} ${fmtQty(amount)}kg`);
+}
+
 function describeViolation(v) {
   switch (v.type) {
     case 'late':         return `납품 마감 ${fmtDur(v.minutes)} 초과`;
@@ -2448,6 +2708,12 @@ function describeViolation(v) {
     case 'fixedLast':    return '마지막 방문 지정 위반';
     case 'precedence':   return '우선순위 역전';
     case 'vehicleLock':  return '차량 지정 위반';
+    case 'zoneIncompatible':
+      return `${zoneName(v.zone)} 적재 불가 차량 (${fmtQty(v.load)}kg)`;
+    case 'zoneMixed':
+      return `배차 분리 위반 — 한 차량이 ${v.zones.map(zoneName).join('·')} 혼재`;
+    case 'frozenLate':
+      return `냉동 후순위 — 냉동 ${v.stops}곳이 상온·냉장 뒤로 밀림 (역전 ${v.pairs}건)`;
     default:             return v.type;
   }
 }
@@ -2784,7 +3050,8 @@ function renderStops() {
     if (style) badge.style.background = style.color;
 
     const meta = el('div', { class: 'list-meta' });
-    if (s.weight) meta.append(el('span', { text: `${fmtInt(s.weight)}kg` }));
+    for (const zk of s.zones) meta.append(zoneChip(zk, s.demand[zk].w));
+    if (!s.zones.length && s.weight) meta.append(el('span', { text: `${fmtInt(s.weight)}kg` }));
     if (s.boxes) meta.append(el('span', { text: `${fmtInt(s.boxes)}박스` }));
     if (s.twStart || s.twEnd) meta.append(el('span', { class: 'chip', 'data-tone': 'accent', text: `${s.twStart || '–'}~${s.twEnd || '–'}` }));
     if (s.service) meta.append(el('span', { text: `하역 ${s.service}분` }));
@@ -2840,11 +3107,10 @@ function renderVehicles() {
     const body = el('div', { class: 'list-main' },
       el('b', { text: v.name }),
       el('div', { class: 'list-meta' },
-        el('span', { text: `${fmtInt(v.capWeight)}kg` }),
-        el('span', { text: `${v.capVolume}CBM` }),
-        el('span', { text: `${fmtInt(v.capBoxes)}박스` }),
+        ...vehicleZones(v).map((zk) => zoneChip(zk, v.compartments && v.zones[zk].capWeight > 0 ? v.zones[zk].capWeight : undefined)),
+        el('span', { text: `총 ${fmtInt(v.capWeight)}kg` }),
         el('span', { class: 'chip', text: `${v.start}~${v.end}` }),
-        el('span', { text: `최대 ${fmtDur(v.maxMinutes)}` }),
+        v.compartments ? el('span', { class: 'chip', 'data-tone': 'accent', text: '칸막이' }) : null,
       ));
 
     const card = el('div', { class: 'list-item' }, sw, body,
@@ -2883,8 +3149,44 @@ function toggleVehicleEdit(card, i) {
       mkField('운행 시작', `vs${i}`, 'time', v.start),
       mkField('운행 종료', `ve${i}`, 'time', v.end),
       mkField('최대 운행(분)', `vm${i}`, 'number', v.maxMinutes, { min: 30 })),
+  );
+
+  /* --- 온도대 칸 설정 --- */
+  const compToggle = el('input', { type: 'checkbox', id: `vc${i}`, ...(v.compartments ? { checked: true } : {}) });
+  compToggle.addEventListener('change', () => {
+    $$(`[data-zone-cap="${i}"]`).forEach((n) => { n.disabled = !compToggle.checked; });
+  });
+  form.append(
+    el('div', { class: 'section-title', style: 'margin-top:12px', text: '온도대 · 적재 칸' }),
+    el('label', { class: 'switch', style: 'padding-top:0' },
+      compToggle, el('span', { class: 'switch-track' }),
+      el('span', { class: 'switch-text' },
+        el('b', { text: '칸막이차 (칸별 한도)' }),
+        el('span', { text: '끄면 칸 구분 없이 차량 총 적재량만 봅니다' }))),
+    el('div', { class: 'veh-zone-row' },
+      el('span'), el('span'),
+      el('span', { class: 'zg-head', text: '중량(kg)' }),
+      el('span', { class: 'zg-head', text: '부피(CBM)' }),
+      el('span', { class: 'zg-head', text: '박스' })),
+    ...ZONES.map((z) => {
+      const spec = v.zones[z.key];
+      const allow = el('input', { type: 'checkbox', id: `vz${i}${z.key}`, ...(spec.allowed ? { checked: true } : {}) });
+      const caps = ['capWeight', 'capVolume', 'capBoxes'].map((ck, ci) =>
+        el('input', {
+          type: 'number', min: 0, step: ci === 1 ? '0.1' : '1',
+          id: `vz${i}${z.key}${ck}`, 'data-zone-cap': String(i),
+          value: spec[ck] || '', placeholder: '무제한',
+          ...(v.compartments ? {} : { disabled: true }),
+        }));
+      return el('div', { class: 'veh-zone-row' },
+        allow,
+        el('span', { class: 'zone-chip', 'data-zone': z.key },
+          el('span', { class: 'zone-ico', text: z.icon }), z.name),
+        ...caps);
+    }),
+    el('p', { class: 'hint', text: '체크를 풀면 그 온도대를 아예 실을 수 없는 차량이 됩니다. 칸 한도를 비우면 차량 총량만 적용됩니다.' }),
     el('button', {
-      class: 'btn btn-primary btn-sm btn-block', text: '저장',
+      class: 'btn btn-primary btn-sm btn-block', style: 'margin-top:10px', text: '저장',
       onclick: () => {
         v.name = $(`#vn${i}`).value.trim() || v.name;
         v.capWeight = num($(`#vw${i}`).value, v.capWeight);
@@ -2893,6 +3195,16 @@ function toggleVehicleEdit(card, i) {
         v.start = $(`#vs${i}`).value || v.start;
         v.end = $(`#ve${i}`).value || v.end;
         v.maxMinutes = num($(`#vm${i}`).value, v.maxMinutes);
+        v.compartments = $(`#vc${i}`).checked;
+        for (const z of ZONES) {
+          v.zones[z.key] = {
+            allowed: $(`#vz${i}${z.key}`).checked,
+            capWeight: Math.max(0, num($(`#vz${i}${z.key}capWeight`).value, 0)),
+            capVolume: Math.max(0, num($(`#vz${i}${z.key}capVolume`).value, 0)),
+            capBoxes: Math.max(0, num($(`#vz${i}${z.key}capBoxes`).value, 0)),
+          };
+        }
+        if (!vehicleZones(v).length) { toast('온도대를 최소 하나는 허용해야 합니다', 'warn'); return; }
         invalidateSolution(); saveState(); renderAll();
         toast(`${v.name} 저장됨`, 'good', 1800);
       },
@@ -2979,7 +3291,8 @@ function renderResultPanel() {
           el('span', { text: fmtKm(rt.m.distance) }),
           el('span', { text: `${toHHMM(rt.m.departMin)}~${toHHMM(rt.m.endMin)}` }),
           el('span', { text: fmtDur(rt.m.durationMin) }),
-          el('span', { class: 'chip', text: `${fmtInt(rt.m.load.w)}kg` }),
+          ...ZONE_KEYS.filter((zk) => rt.m.zoneLoad[zk].w > 0).map((zk) => zoneChip(zk, rt.m.zoneLoad[zk].w)),
+          el('span', { class: 'chip', text: `총 ${fmtInt(rt.m.load.w)}kg` }),
           rt.m.waitMin > 1 ? el('span', { class: 'chip', 'data-tone': 'warn', text: `대기 ${fmtDur(rt.m.waitMin)}` }) : null,
           rt.m.violations.length ? el('span', { class: 'chip', 'data-tone': 'crit', text: `위반 ${rt.m.violations.length}` }) : null,
         )),
@@ -3010,7 +3323,7 @@ function renderTable() {
   }
   const tbl = el('table', { class: 'tbl' });
   tbl.append(el('thead', {}, el('tr', {},
-    ...['순번', '납품처', '주소', '도착', '대기', '하역', '출발', '구간거리', '누적거리', '중량', '박스', '납품가능', '상태']
+    ...['순번', '납품처', '주소', '온도대', '도착', '대기', '하역', '출발', '구간거리', '누적거리', '중량', '박스', '납품가능', '상태']
       .map((h) => el('th', { text: h })))));
   const tb = el('tbody');
 
@@ -3021,10 +3334,11 @@ function renderTable() {
     const dot = el('span', { class: 'dot' });
     dot.style.background = st.color;
     const head = el('tr', { class: 'route-head' },
-      el('td', { colspan: 13 }, dot,
+      el('td', { colspan: 14 }, dot,
         `${veh ? veh.name : '코스 ' + (ri + 1)} · ${rt.seq.length}곳 · ${fmtKm(rt.m.distance)} · `
         + `${toHHMM(rt.m.departMin)}~${toHHMM(rt.m.endMin)} (${fmtDur(rt.m.durationMin)}) · `
-        + `적재 ${fmtInt(rt.m.load.w)}kg / ${rt.m.load.v.toFixed(1)}CBM / ${fmtInt(rt.m.load.b)}박스`));
+        + `적재 ${fmtInt(rt.m.load.w)}kg / ${rt.m.load.v.toFixed(1)}CBM / ${fmtInt(rt.m.load.b)}박스 · `,
+        ...ZONE_KEYS.filter((zk) => rt.m.zoneLoad[zk].w > 0).map((zk) => zoneChip(zk, rt.m.zoneLoad[zk].w))));
     tb.append(head);
 
     const violByStop = new Map();
@@ -3041,6 +3355,7 @@ function renderTable() {
         el('td', { class: 'num', text: String(k + 1) }),
         el('td', { text: s.name }),
         el('td', { style: 'max-width:200px;overflow:hidden;text-overflow:ellipsis', text: s.addr || '–' }),
+        el('td', {}, ...(s.zones.length ? s.zones.map((zk) => zoneChip(zk, s.demand[zk].w)) : ['–'])),
         el('td', { class: 'num', text: toHHMM(lg.arrive) }),
         el('td', { class: 'num', text: lg.wait > 0.5 ? fmtDur(lg.wait) : '–' }),
         el('td', { class: 'num', text: lg.svc ? `${Math.round(lg.svc)}분` : '–' }),
@@ -3060,6 +3375,7 @@ function renderTable() {
         el('td', { class: 'num', text: '↩' }),
         el('td', { text: `${S.depot.name} (복귀)` }),
         el('td', { text: S.depot.addr || '–' }),
+        el('td', { text: '–' }),
         el('td', { class: 'num', text: toHHMM(rt.m.returnLeg.arrive) }),
         el('td', { text: '–' }), el('td', { text: '–' }), el('td', { text: '–' }),
         el('td', { class: 'num', text: fmtKm(rt.m.returnLeg.legDist) }),
@@ -3196,6 +3512,33 @@ function renderWizMap() {
   }
 }
 
+/**
+ * 도메인 등록 여부는 SDK 로드만으로 알 수 없다 — services 를 실제로 호출해 봐야 한다.
+ * (앱키가 맞아도 사이트 도메인이 등록돼 있지 않으면 검색 호출이 거부된다)
+ */
+function probeMapServices() {
+  return new Promise((resolve) => {
+    if (!RT.geocoder) { resolve('NO_GEOCODER'); return; }
+    let done = false;
+    const timer = setTimeout(() => { if (!done) { done = true; resolve('TIMEOUT'); } }, 8000);
+    try {
+      RT.geocoder.addressSearch('서울특별시 중구 세종대로 110', (_data, status) => {
+        if (done) return;
+        done = true; clearTimeout(timer);
+        resolve(String(status));
+      });
+    } catch (err) {
+      if (!done) { done = true; clearTimeout(timer); resolve('THREW:' + err.message); }
+    }
+  });
+}
+
+/** 검색 호출 결과가 "정상 응답"인가 (결과 0건도 API 는 살아 있는 것) */
+function probeIsOk(probe) {
+  const St = window.kakao?.maps?.services?.Status || {};
+  return probe === String(St.OK) || probe === String(St.ZERO_RESULT);
+}
+
 async function checkMapKey() {
   const key = ($('#wizJsKey')?.value || '').trim();
   const msg = $('#wizMapMsg');
@@ -3228,19 +3571,7 @@ async function checkMapKey() {
 
   // 3) 도메인 등록 여부는 services 호출로만 알 수 있다 (SDK 로드는 성공해도 호출이 거부될 수 있음)
   setWizState('map', 'checking', '도메인 등록 여부를 확인하는 중…');
-  const probe = await new Promise((resolve) => {
-    let done = false;
-    const timer = setTimeout(() => { if (!done) { done = true; resolve('TIMEOUT'); } }, 8000);
-    try {
-      RT.geocoder.addressSearch('서울특별시 중구 세종대로 110', (_data, status) => {
-        if (done) return;
-        done = true; clearTimeout(timer);
-        resolve(String(status));
-      });
-    } catch (err) {
-      if (!done) { done = true; clearTimeout(timer); resolve('THREW:' + err.message); }
-    }
-  });
+  const probe = await probeMapServices();
 
   const St = window.kakao?.maps?.services?.Status || {};
   if (probe === String(St.OK) || probe === String(St.ZERO_RESULT)) {
@@ -3493,9 +3824,14 @@ function openStopEditor(id) {
   $('#fAddr').value = s?.addr || '';
   $('#fLat').value = s?.lat ?? '';
   $('#fLng').value = s?.lng ?? '';
-  $('#fWeight').value = s?.weight ?? 0;
-  $('#fVolume').value = s?.volume ?? 0;
-  $('#fBoxes').value = s?.boxes ?? 0;
+  const dem = s ? s.demand : emptyZoneLoad();
+  const ZID = { ambient: 'Ambient', chilled: 'Chilled', frozen: 'Frozen' };
+  for (const zk of ZONE_KEYS) {
+    $(`#f${ZID[zk]}W`).value = dem[zk].w || '';
+    $(`#f${ZID[zk]}V`).value = dem[zk].v || '';
+    $(`#f${ZID[zk]}B`).value = dem[zk].b || '';
+  }
+  syncZoneTotals();
   $('#fTwStart').value = s?.twStart || '';
   $('#fTwEnd').value = s?.twEnd || '';
   $('#fService').value = s?.service ?? 10;
@@ -3511,15 +3847,37 @@ function openStopEditor(id) {
   setTimeout(() => $('#fName').focus(), 30);
 }
 
+/** 온도대 입력 합계를 즉시 반영 (입력 실수를 바로 알아채도록) */
+function syncZoneTotals() {
+  const ZID = { ambient: 'Ambient', chilled: 'Chilled', frozen: 'Frozen' };
+  let w = 0, v = 0, b = 0;
+  for (const zk of ZONE_KEYS) {
+    w += num($(`#f${ZID[zk]}W`)?.value, 0);
+    v += num($(`#f${ZID[zk]}V`)?.value, 0);
+    b += num($(`#f${ZID[zk]}B`)?.value, 0);
+  }
+  if ($('#fTotalW')) $('#fTotalW').textContent = fmtQty(w) + ' kg';
+  if ($('#fTotalV')) $('#fTotalV').textContent = fmtQty(v) + ' CBM';
+  if ($('#fTotalB')) $('#fTotalB').textContent = fmtQty(b) + ' 박스';
+}
+
 function saveStopFromModal() {
   const lat = num($('#fLat').value, NaN), lng = num($('#fLng').value, NaN);
   const name = $('#fName').value.trim();
   if (!name) { toast('납품처명을 입력하세요', 'warn'); $('#fName').focus(); return; }
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) { toast('위도·경도를 입력하세요', 'warn'); $('#fLat').focus(); return; }
 
+  const ZID = { ambient: 'Ambient', chilled: 'Chilled', frozen: 'Frozen' };
+  const demand = emptyZoneLoad();
+  for (const zk of ZONE_KEYS) {
+    demand[zk] = {
+      w: Math.max(0, num($(`#f${ZID[zk]}W`).value, 0)),
+      v: Math.max(0, num($(`#f${ZID[zk]}V`).value, 0)),
+      b: Math.max(0, num($(`#f${ZID[zk]}B`).value, 0)),
+    };
+  }
   const data = {
-    name, addr: $('#fAddr').value.trim(), lat, lng,
-    weight: num($('#fWeight').value, 0), volume: num($('#fVolume').value, 0), boxes: num($('#fBoxes').value, 0),
+    name, addr: $('#fAddr').value.trim(), lat, lng, demand,
     twStart: $('#fTwStart').value, twEnd: $('#fTwEnd').value,
     service: num($('#fService').value, 0),
     priority: num($('#fPriority').value, 0),
@@ -3554,7 +3912,26 @@ const HEADER_MAP = {
   priority: ['우선순위', '순위', 'priority', 'prio'],
   fixed:    ['고정', '고정순번', 'fixed'],
   memo:     ['메모', '비고', 'note', 'memo'],
+  zone:     ['온도대', '보관', '보관구분', '온도', 'zone', 'temp', 'temperature'],
+  // 온도대별 물량 — `상온중량`, `냉장부피`, `냉동박스` 형태
+  ambientW: ['상온중량', '상온무게', 'ambientweight', 'ambientkg'],
+  ambientV: ['상온부피', '상온체적', 'ambientvolume', 'ambientcbm'],
+  ambientB: ['상온박스', '상온수량', 'ambientboxes'],
+  chilledW: ['냉장중량', '냉장무게', 'chilledweight', 'chilledkg'],
+  chilledV: ['냉장부피', '냉장체적', 'chilledvolume', 'chilledcbm'],
+  chilledB: ['냉장박스', '냉장수량', 'chilledboxes'],
+  frozenW:  ['냉동중량', '냉동무게', 'frozenweight', 'frozenkg'],
+  frozenV:  ['냉동부피', '냉동체적', 'frozenvolume', 'frozencbm'],
+  frozenB:  ['냉동박스', '냉동수량', 'frozenboxes'],
 };
+
+/** 온도대 열 문자열 → 온도대 키 */
+function parseZone(v) {
+  const t = String(v ?? '').trim().toLowerCase();
+  if (!t) return null;
+  for (const z of ZONES) if (z.csv.some((a) => t.includes(a.toLowerCase()))) return z.key;
+  return null;
+}
 /** 헤더 정규화: 단위 괄호를 통째로 걷어낸 뒤 구분기호를 제거한다.
  *  `중량(kg)` → `중량` 처럼 앱이 내보낸 CSV를 그대로 되읽을 수 있어야 한다. */
 const normHeader = (h) => String(h).toLowerCase()
@@ -3578,7 +3955,7 @@ function splitLine(line, delim) {
 
 function parseStopCsv(text) {
   const lines = text.replace(/\r\n?/g, '\n').split('\n').filter((l) => l.trim());
-  if (lines.length < 2) return { rows: [], error: '헤더 행과 데이터 행이 각각 1줄 이상 필요합니다.' };
+  if (lines.length < 2) return { rows: [], error: '헤더 행과 데이터 행이 각각 1줄 이상 필요합니다.' , warnings: [] };
   const delim = (lines[0].split('\t').length > lines[0].split(',').length) ? '\t' : ',';
   const header = splitLine(lines[0], delim).map(normHeader);
 
@@ -3588,9 +3965,11 @@ function parseStopCsv(text) {
     const idx = header.findIndex((h) => set.includes(h));
     if (idx >= 0) col[field] = idx;
   }
-  if (col.name === undefined) return { rows: [], error: '납품처명 열을 찾지 못했습니다. 헤더 행을 확인하세요.' };
+  const hasZoneCols = ['ambientW', 'chilledW', 'frozenW', 'ambientB', 'chilledB', 'frozenB',
+                       'ambientV', 'chilledV', 'frozenV'].some((k) => col[k] !== undefined);
+  if (col.name === undefined) return { rows: [], error: '납품처명 열을 찾지 못했습니다. 헤더 행을 확인하세요.' , warnings: [] };
   if (col.lat === undefined && col.addr === undefined) {
-    return { rows: [], error: '위도·경도 또는 주소 열 중 하나는 반드시 필요합니다.' };
+    return { rows: [], error: '위도·경도 또는 주소 열 중 하나는 반드시 필요합니다.' , warnings: [] };
   }
 
   const pick = (cells, f) => (col[f] !== undefined ? cells[col[f]] : undefined);
@@ -3613,11 +3992,29 @@ function parseStopCsv(text) {
     const cells = splitLine(lines[i], delim);
     const name = String(pick(cells, 'name') || '').trim();
     if (!name) continue;
+    const zoneCell = String(pick(cells, 'zone') ?? '').trim();
+    const parsedZone = parseZone(zoneCell);
+    // 온도대별 열이 있으면 그것을 쓰고, 없으면 `온도대` 열 + 단일 물량, 둘 다 없으면 상온으로 본다
+    let demand = null;
+    if (hasZoneCols) {
+      demand = emptyZoneLoad();
+      for (const zk of ZONE_KEYS) {
+        demand[zk] = {
+          w: Math.max(0, num(pick(cells, zk + 'W'), 0)),
+          v: Math.max(0, num(pick(cells, zk + 'V'), 0)),
+          b: Math.max(0, num(pick(cells, zk + 'B'), 0)),
+        };
+      }
+    }
     rows.push({
       name,
       addr: String(pick(cells, 'addr') || '').trim(),
       lat: col.lat !== undefined ? num(pick(cells, 'lat'), NaN) : NaN,
       lng: col.lng !== undefined ? num(pick(cells, 'lng'), NaN) : NaN,
+      demand,
+      zone: zoneCell ? (parsedZone || 'ambient') : 'ambient',
+      zoneRaw: zoneCell,
+      zoneUnknown: Boolean(zoneCell) && !parsedZone,
       weight: num(pick(cells, 'weight'), 0),
       volume: num(pick(cells, 'volume'), 0),
       boxes: num(pick(cells, 'boxes'), 0),
@@ -3629,7 +4026,14 @@ function parseStopCsv(text) {
       memo: String(pick(cells, 'memo') || '').trim(),
     });
   }
-  return { rows, error: rows.length ? null : '가져올 행이 없습니다.' };
+  const unknownZones = [...new Set(rows.filter((r) => r.zoneUnknown).map((r) => r.zoneRaw))];
+  return {
+    rows,
+    error: rows.length ? null : '가져올 행이 없습니다.',
+    warnings: unknownZones.length
+      ? [`온도대를 알아볼 수 없는 값 ${unknownZones.length}종(${unknownZones.slice(0, 4).map((z) => `"${z}"`).join(', ')})은 상온으로 처리됩니다. 상온·냉장·냉동 중 하나로 적어주세요.`]
+      : [],
+  };
 }
 
 function previewCsv() {
@@ -3637,23 +4041,39 @@ function previewCsv() {
   host.textContent = '';
   const text = $('#csvText').value.trim();
   if (!text) return;
-  const { rows, error } = parseStopCsv(text);
+  const { rows, error, warnings } = parseStopCsv(text);
   if (error) {
     host.append(el('div', { class: 'banner', 'data-tone': 'crit', style: 'margin-top:10px' },
       el('span', { class: 'banner-ico', text: '⛔' }), el('span', { text: error })));
     return;
   }
+  for (const w of (warnings || [])) {
+    host.append(el('div', { class: 'banner', 'data-tone': 'warn', style: 'margin-top:10px' },
+      el('span', { class: 'banner-ico', text: '⚠️' }), el('span', { text: w })));
+  }
   const needGeo = rows.filter((r) => !Number.isFinite(r.lat) || !Number.isFinite(r.lng)).length;
+  const zoneTot = emptyZoneLoad();
+  for (const r of rows) {
+    const d = normalizeDemand(r.demand ? r : { ...r, demand: undefined });
+    for (const zk of ZONE_KEYS) zoneTot[zk].w += d[zk].w;
+  }
+  const usedZones = ZONE_KEYS.filter((zk) => zoneTot[zk].w > 0);
   host.append(el('div', { class: 'banner', 'data-tone': needGeo ? 'warn' : 'good', style: 'margin-top:10px' },
     el('span', { class: 'banner-ico', text: needGeo ? '⚠️' : '✅' }),
     el('span', {}, el('b', { text: `${rows.length}개 행 인식` }),
       el('span', { text: needGeo ? `이 중 ${needGeo}곳은 주소로 좌표를 조회합니다 (지도 SDK 필요).` : '모든 행에 좌표가 있습니다.' }))));
+  if (usedZones.length) {
+    host.append(el('div', { style: 'display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;align-items:center' },
+      el('span', { style: 'font-size:11px;color:var(--text-3);font-weight:600', text: '온도대별 합계' }),
+      ...usedZones.map((zk) => zoneChip(zk, zoneTot[zk].w))));
+  }
 }
 
 async function importCsv() {
   const text = $('#csvText').value.trim();
-  const { rows, error } = parseStopCsv(text);
+  const { rows, error, warnings } = parseStopCsv(text);
   if (error) { toast(error, 'crit'); return; }
+  for (const w of (warnings || [])) toast(w, 'warn', 8000);
 
   const needGeo = rows.filter((r) => !Number.isFinite(r.lat) || !Number.isFinite(r.lng));
   if (needGeo.length && !RT.sdkReady) {
@@ -3678,7 +4098,7 @@ async function importCsv() {
     $('#progTitle').textContent = '최적화 진행 중';
   }
 
-  const valid = rows.map(normalizeStop).filter(Boolean);
+  const valid = rows.map((r) => normalizeStop(r.demand ? r : { ...r, demand: undefined })).filter(Boolean);
   if ($('#csvReplace').checked) S.stops = valid;
   else S.stops.push(...valid);
 
@@ -3691,27 +4111,37 @@ async function importCsv() {
 
 /* --------------------------------------------------------------- 샘플 --- */
 const SAMPLE_STOPS = [
-  ['서울역점', '서울 중구 한강대로 405', 37.5547, 126.9707, 320, 1.2, 18, '08:00', '11:00', 15, 1, ''],
-  ['강남역점', '서울 강남구 강남대로 396', 37.4979, 127.0276, 480, 1.8, 26, '09:00', '14:00', 20, 0, ''],
-  ['잠실점', '서울 송파구 올림픽로 265', 37.5133, 127.1000, 610, 2.4, 33, '08:30', '12:00', 25, 1, ''],
-  ['홍대입구점', '서울 마포구 양화로 160', 37.5572, 126.9245, 270, 1.0, 14, '10:00', '16:00', 15, 0, ''],
-  ['여의도점', '서울 영등포구 여의나루로 40', 37.5215, 126.9243, 390, 1.5, 21, '09:00', '13:00', 18, 0, ''],
-  ['왕십리점', '서울 성동구 왕십리로 300', 37.5613, 127.0374, 240, 0.9, 13, '10:00', '17:00', 12, 0, ''],
-  ['신촌점', '서울 서대문구 신촌로 83', 37.5551, 126.9368, 300, 1.1, 16, '09:30', '15:00', 15, 0, ''],
-  ['건대입구점', '서울 광진구 아차산로 262', 37.5404, 127.0700, 410, 1.6, 22, '08:00', '12:30', 20, 1, ''],
-  ['사당점', '서울 동작구 동작대로 3', 37.4766, 126.9816, 350, 1.3, 19, '10:00', '16:00', 15, 0, ''],
-  ['노원점', '서울 노원구 노해로 480', 37.6553, 127.0614, 520, 2.0, 28, '11:00', '17:00', 22, 0, ''],
-  ['목동점', '서울 양천구 목동동로 233', 37.5260, 126.8752, 280, 1.1, 15, '09:00', '15:00', 14, 0, ''],
-  ['수유점', '서울 강북구 도봉로 338', 37.6379, 127.0255, 330, 1.2, 18, '10:30', '17:00', 16, 0, ''],
-  ['구로디지털점', '서울 구로구 디지털로 300', 37.4853, 126.9016, 450, 1.7, 24, '08:30', '13:00', 20, 0, ''],
-  ['삼성점', '서울 강남구 테헤란로 521', 37.5089, 127.0631, 560, 2.2, 30, '09:00', '12:00', 24, 1, ''],
-  ['상봉점', '서울 중랑구 망우로 297', 37.5966, 127.0853, 220, 0.8, 12, '11:00', '18:00', 12, 0, 'last'],
+  // [명, 주소, 위도, 경도, {상온 w,v,b}, {냉장 w,v,b}, {냉동 w,v,b}, 시작, 종료, 하역, 우선순위, 고정]
+  ['서울역점',      '서울 중구 한강대로 405',      37.5547, 126.9707, [120, .5,  7], [140, .5,  8], [ 60, .2,  3], '08:00', '11:00', 15, 1, ''],
+  ['강남역점',      '서울 강남구 강남대로 396',    37.4979, 127.0276, [180, .7, 10], [200, .8, 11], [100, .3,  5], '09:00', '14:00', 20, 0, ''],
+  ['잠실점',        '서울 송파구 올림픽로 265',    37.5133, 127.1000, [220, .9, 12], [250, 1.0, 14], [140, .5,  7], '08:30', '12:00', 25, 1, ''],
+  ['홍대입구점',    '서울 마포구 양화로 160',      37.5572, 126.9245, [270, 1.0, 14], [  0,  0,  0], [  0,  0,  0], '10:00', '16:00', 15, 0, ''],
+  ['여의도점',      '서울 영등포구 여의나루로 40', 37.5215, 126.9243, [  0,  0,  0], [240, .9, 13], [150, .6,  8], '09:00', '13:00', 18, 0, ''],
+  ['왕십리점',      '서울 성동구 왕십리로 300',    37.5613, 127.0374, [100, .4,  5], [140, .5,  8], [  0,  0,  0], '10:00', '17:00', 12, 0, ''],
+  ['신촌점',        '서울 서대문구 신촌로 83',     37.5551, 126.9368, [110, .4,  6], [110, .4,  6], [ 80, .3,  4], '09:30', '15:00', 15, 0, ''],
+  ['건대입구점',    '서울 광진구 아차산로 262',    37.5404, 127.0700, [150, .6,  8], [160, .6,  9], [100, .4,  5], '08:00', '12:30', 20, 1, ''],
+  ['사당점',        '서울 동작구 동작대로 3',      37.4766, 126.9816, [  0,  0,  0], [200, .8, 11], [150, .5,  8], '10:00', '16:00', 15, 0, ''],
+  ['노원점',        '서울 노원구 노해로 480',      37.6553, 127.0614, [200, .8, 11], [200, .8, 11], [120, .4,  6], '11:00', '17:00', 22, 0, ''],
+  ['목동점',        '서울 양천구 목동동로 233',    37.5260, 126.8752, [280, 1.1, 15], [  0,  0,  0], [  0,  0,  0], '09:00', '15:00', 14, 0, ''],
+  ['수유점',        '서울 강북구 도봉로 338',      37.6379, 127.0255, [130, .5,  7], [200, .7, 11], [  0,  0,  0], '10:30', '17:00', 16, 0, ''],
+  ['구로디지털점',  '서울 구로구 디지털로 300',    37.4853, 126.9016, [150, .6,  8], [180, .7, 10], [120, .4,  6], '08:30', '13:00', 20, 0, ''],
+  ['삼성점',        '서울 강남구 테헤란로 521',    37.5089, 127.0631, [200, .8, 11], [220, .9, 12], [140, .5,  7], '09:00', '12:00', 24, 1, ''],
+  ['상봉점',        '서울 중랑구 망우로 297',      37.5966, 127.0853, [  0,  0,  0], [  0,  0,  0], [220, .8, 12], '11:00', '18:00', 12, 0, 'last'],
 ];
 
+/** 샘플 행 → 납품처 객체 */
+function sampleToStop(row) {
+  const [name, addr, lat, lng, amb, chi, fro, twStart, twEnd, service, priority, fixed] = row;
+  const zl = (a) => ({ w: a[0], v: a[1], b: a[2] });
+  return normalizeStop({
+    name, addr, lat, lng,
+    demand: { ambient: zl(amb), chilled: zl(chi), frozen: zl(fro) },
+    twStart, twEnd, service, priority, fixed,
+  });
+}
+
 function loadSample() {
-  S.stops = SAMPLE_STOPS.map(([name, addr, lat, lng, w, v, b, ts, te, sv, pr, fx]) =>
-    normalizeStop({ name, addr, lat, lng, weight: w, volume: v, boxes: b,
-                    twStart: ts, twEnd: te, service: sv, priority: pr, fixed: fx }));
+  S.stops = SAMPLE_STOPS.map(sampleToStop);
   S.depot = { name: '중앙 물류센터', addr: '서울 송파구 양재대로 932 (가락시장)', lat: 37.4926, lng: 127.1183 };
   invalidateSolution(); saveState(); renderAll();
   toast(`샘플 납품처 ${S.stops.length}곳을 불러왔습니다`, 'good');
@@ -3843,7 +4273,12 @@ function exportCsv() {
   const sol = RT.solution;
   if (!sol) { toast('내보낼 결과가 없습니다', 'warn'); return; }
   const head = ['차량', '순번', '납품처', '주소', '위도', '경도', '도착', '대기(분)', '하역(분)', '출발',
-                '구간거리(km)', '누적거리(km)', '중량(kg)', '부피(CBM)', '박스', '납품시작', '납품종료', '위반'];
+                '구간거리(km)', '누적거리(km)',
+                '상온중량', '상온부피', '상온박스', '냉장중량', '냉장부피', '냉장박스', '냉동중량', '냉동부피', '냉동박스',
+                '중량(kg)', '부피(CBM)', '박스', '납품시작', '납품종료', '위반'];
+  // '하역(분)' 은 입력값 그대로 내보낸다. 온도대 가산이 붙은 실제 소요는 '실하역(분)' 으로
+  // 따로 낸다 — 그렇지 않으면 내보내기→가져오기를 반복할 때마다 하역시간이 부풀어 오른다.
+  head.splice(head.indexOf('하역(분)') + 1, 0, '실하역(분)');
   const lines = [head.join(',')];
   const q = (v) => {
     const s = String(v ?? '');
@@ -3864,15 +4299,17 @@ function exportCsv() {
       const s = S.stops[lg.stopIdx];
       const vio = violByStop.get(lg.stopIdx);
       lines.push([vname, k + 1, s.name, s.addr, s.lat, s.lng, toHHMM(lg.arrive),
-        Math.round(lg.wait), Math.round(lg.svc), toHHMM(lg.depart),
+        Math.round(lg.wait), Math.round(s.service), Math.round(lg.svc), toHHMM(lg.depart),
         (lg.legDist / 1000).toFixed(2), (lg.cumDist / 1000).toFixed(2),
+        ...ZONE_KEYS.flatMap((zk) => [s.demand[zk].w || '', s.demand[zk].v || '', s.demand[zk].b || '']),
         s.weight, s.volume, s.boxes, s.twStart, s.twEnd,
         vio ? vio.map(describeViolation).join(' / ') : ''].map(q).join(','));
     });
     if (rt.m.returnLeg) {
       lines.push([vname, '복귀', S.depot.name, S.depot.addr, S.depot.lat, S.depot.lng,
-        toHHMM(rt.m.returnLeg.arrive), 0, 0, '',
+        toHHMM(rt.m.returnLeg.arrive), 0, 0, 0, '',
         (rt.m.returnLeg.legDist / 1000).toFixed(2), (rt.m.distance / 1000).toFixed(2),
+        ...new Array(9).fill(''),
         '', '', '', '', '', ''].map(q).join(','));
     }
   });
@@ -3970,6 +4407,8 @@ function bindEvents() {
   });
   $('#btnOpenCsv').addEventListener('click', () => { $('#csvPreview').textContent = ''; openModal('csvModal'); });
   $('#btnSaveStop').addEventListener('click', saveStopFromModal);
+  ['Ambient', 'Chilled', 'Frozen'].forEach((z) => ['W', 'V', 'B'].forEach((f) =>
+    $(`#f${z}${f}`).addEventListener('input', syncZoneTotals)));
   $('#stopFilter').addEventListener('input', renderStops);
   $('#btnClearStops').addEventListener('click', () => {
     if (!S.stops.length) return;
@@ -4021,6 +4460,8 @@ function bindEvents() {
     '#optTimeWindow': 'useTimeWindow', '#optCapacity': 'useCapacity', '#optFixedOrder': 'useFixedOrder',
     '#optServiceTime': 'useServiceTime', '#optMaxDuration': 'useMaxDuration', '#optReturnDepot': 'returnToDepot',
     '#optAllowWait': 'allowWait', '#optBalance': 'balance', '#optDeterministic': 'deterministic',
+    '#optTemperature': 'useTemperature', '#optStrictMix': 'strictMix',
+    '#optFrozenFirst': 'frozenFirst', '#optZoneSeparation': 'zoneSeparation',
   };
   for (const [sel, key] of Object.entries(optMap)) {
     const node = $(sel);
@@ -4040,6 +4481,12 @@ function bindEvents() {
 
   $('#optSeed').value = String(S.options.seed);
   $('#optSeed').addEventListener('change', (e) => { S.options.seed = num(e.target.value, 20260831); saveState(); });
+  $('#optZoneBonus').value = String(S.options.zoneServiceBonus);
+  $('#optZoneBonus').addEventListener('change', (e) => {
+    S.options.zoneServiceBonus = clamp(num(e.target.value, 5), 0, 60);
+    e.target.value = String(S.options.zoneServiceBonus);
+    invalidateSolution(); saveState(); renderAll();
+  });
   $('#optSpeed').value = String(S.options.speedKmh);
   $('#optSpeed').addEventListener('change', (e) => { S.options.speedKmh = clamp(num(e.target.value, 30), 5, 120); saveState(); });
 
@@ -4064,7 +4511,9 @@ function bindEvents() {
   syncRoadCfg();
   const syncTransport = () => { $('#proxyField').hidden = S.settings.transport !== 'proxy'; };
   bindSegmented('#segTransport', () => S.settings.transport, (v) => {
-    S.settings.transport = v; syncTransport(); syncProxyHint(); saveState(); renderWizard();
+    S.settings.transport = v;
+    S.settings.transportAuto = false;   // 직접 골랐으므로 이후 자동 전환하지 않는다
+    syncTransport(); syncProxyHint(); saveState(); renderWizard();
   });
   syncTransport();
 
@@ -4168,6 +4617,9 @@ function syncProxyHint() {
 window.__S = S;
 window.__RT = RT;
 window.__parseStopCsv = parseStopCsv;
+window.__normalizeStop = normalizeStop;
+window.__normalizeVehicle = normalizeVehicle;
+window.__PENALTY = PENALTY;
 window.__evaluateRoute = evaluateRoute;
 window.__buildContext = buildContext;
 window.__buildMatrix = buildMatrix;
@@ -4195,9 +4647,7 @@ window.__vehicleOf = vehicleOf;
   // 저장된 상태가 전혀 없을 때(=첫 실행)만 샘플을 채운다.
   // 사용자가 목록을 비운 것과 첫 실행을 구분해야 하므로 stops 길이로 판단하지 않는다.
   if (!hadState) {
-    S.stops = SAMPLE_STOPS.map(([name, addr, lat, lng, w, v, b, ts, te, sv, pr, fx]) =>
-      normalizeStop({ name, addr, lat, lng, weight: w, volume: v, boxes: b,
-                      twStart: ts, twEnd: te, service: sv, priority: pr, fixed: fx }));
+    S.stops = SAMPLE_STOPS.map(sampleToStop);
   }
 
   renderAll();
@@ -4205,13 +4655,10 @@ window.__vehicleOf = vehicleOf;
 
   // 개발 서버 위에서 열렸는지 확인 — 맞으면 같은 오리진 프록시를 쓸 수 있다
   RT.devServer = await detectDevServer();
-  if (RT.devServer) {
-    if (S.settings.transport !== 'proxy' && S.settings.transport !== 'direct') {
-      S.settings.transport = 'same-origin';
-    }
-  } else if (S.settings.transport === 'same-origin') {
-    // 개발 서버가 아니면 같은 오리진 프록시가 없다. 별도 프록시로 되돌린다.
-    S.settings.transport = 'proxy';
+  // 사용자가 직접 고른 값은 존중하고, 자동 모드일 때만 환경에 맞춰 바꾼다.
+  // (한 번 proxy 로 떨어지면 개발 서버로 열어도 영영 못 돌아오는 문제를 막는다)
+  if (S.settings.transportAuto !== false) {
+    S.settings.transport = RT.devServer ? 'same-origin' : 'proxy';
   }
   $$('#segTransport button[data-val]').forEach((b) =>
     b.setAttribute('aria-pressed', String(b.dataset.val === S.settings.transport)));
@@ -4222,7 +4669,14 @@ window.__vehicleOf = vehicleOf;
 
   if (S.settings.jsKey) {
     const ok = await initMap();
-    if (ok) setWizState('map', 'ok', '지도 · 주소검색 정상');
+    if (ok) {
+      // 지도가 떴다고 끝이 아니다 — 도메인이 등록돼 있어야 검색 API 가 응답한다
+      const probe = await probeMapServices();
+      if (probeIsOk(probe)) setWizState('map', 'ok', '지도 · 주소검색 정상');
+      else setWizState('map', 'fail', '주소검색이 거부되었습니다 — 도메인 등록을 확인하세요');
+    } else {
+      setWizState('map', 'fail', '지도를 불러오지 못했습니다');
+    }
     renderWizard();
   } else {
     showAlert('nokey', 'info', '카카오 JavaScript 앱키를 등록하세요',
