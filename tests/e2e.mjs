@@ -41,7 +41,8 @@ const stopCount = await page.textContent('#badgeStops');
 check('부팅 + 샘플 15곳 자동 로드', stopCount === '15', `badge=${stopCount}`);
 
 // --- 2. 직선거리 모드로 전환 (API 키 없이 최적화 가능하게) ---
-await page.click('#panel-settings, .tab[data-tab="settings"]');
+await page.click('.tab[data-tab="settings"]');
+await page.evaluate(() => { document.querySelector('#advSettings').open = true; });  // 고급 설정 펼치기
 await page.click('#segDistMode button[data-val="straight"]');
 const straightOn = await page.getAttribute('#segDistMode button[data-val="straight"]', 'aria-pressed');
 check('거리 모드 전환 (직선거리)', straightOn === 'true');

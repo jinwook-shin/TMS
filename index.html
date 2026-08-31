@@ -420,6 +420,56 @@ table{border-collapse:collapse;width:100%}
 .tl-tooltip dd{margin:0;font-variant-numeric:tabular-nums;text-align:right}
 
 /* ==========================================================================
+   10-2. 설정 마법사
+   ========================================================================== */
+.wiz{display:flex;flex-direction:column;gap:8px}
+.wiz-step{
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-1);
+  overflow:hidden;transition:border-color .15s;
+}
+.wiz-step[data-state="ok"]{border-color:#a8dfa8}
+.wiz-step[data-state="fail"]{border-color:#f0b8b8}
+.wiz-step[data-state="checking"]{border-color:var(--accent)}
+.wiz-head{display:flex;align-items:center;gap:9px;padding:10px 12px}
+.wiz-num{
+  width:22px;height:22px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
+  background:var(--surface-3);color:var(--text-2);font-size:11px;font-weight:700;
+  font-variant-numeric:tabular-nums;transition:background .15s,color .15s;
+}
+.wiz-step[data-state="ok"] .wiz-num{background:var(--good);color:#fff}
+.wiz-step[data-state="fail"] .wiz-num{background:var(--critical);color:#fff}
+.wiz-step[data-state="checking"] .wiz-num{background:var(--accent);color:#fff}
+.wiz-step[data-state="ok"] .wiz-num::after{content:"✓"}
+.wiz-step[data-state="ok"] .wiz-num > span{display:none}
+.wiz-step[data-state="fail"] .wiz-num::after{content:"!"}
+.wiz-step[data-state="fail"] .wiz-num > span{display:none}
+.wiz-title{flex:1;min-width:0}
+.wiz-title b{display:block;font-size:12.5px;font-weight:600}
+.wiz-title > span{display:block;font-size:11px;color:var(--text-3);margin-top:1px;line-height:1.45}
+.wiz-step[data-state="ok"] .wiz-title > span{color:#0a7a0a}
+.wiz-step[data-state="fail"] .wiz-title > span{color:var(--critical)}
+.wiz-body{padding:10px 12px 12px;border-top:1px solid var(--line)}
+.wiz-body:empty{display:none}
+.wiz-spin{
+  width:12px;height:12px;border-radius:50%;display:inline-block;vertical-align:-1px;
+  border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin .7s linear infinite;
+}
+.copy-row{
+  display:flex;gap:6px;align-items:center;background:var(--surface-3);
+  border-radius:var(--radius-sm);padding:6px 8px;margin:6px 0;
+}
+.copy-row code{
+  flex:1;min-width:0;overflow-x:auto;white-space:nowrap;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--text-1);
+}
+.copy-row button{flex-shrink:0}
+.wiz-steps-mini{margin:6px 0 0;padding-left:18px;font-size:11.5px;color:var(--text-2);line-height:1.7}
+.wiz-steps-mini li{margin-bottom:2px}
+.wiz-steps-mini code{background:var(--surface-3);padding:1px 4px;border-radius:3px;font-size:10.5px}
+details#advSettings > summary::marker{color:var(--text-3)}
+details#advSettings[open] > summary{margin-bottom:2px}
+
+/* ==========================================================================
    11. 모달 / 진행률 / 토스트
    ========================================================================== */
 .modal-backdrop{
@@ -649,85 +699,110 @@ table{border-collapse:collapse;width:100%}
       <!-- ===== 탭 5: 설정 ===== -->
       <div class="panel" id="panel-settings" role="tabpanel" hidden>
         <div class="section">
-          <h3 class="section-title">카카오맵 JavaScript 키</h3>
-          <div class="card">
-            <div class="field">
-              <label for="cfgJsKey">JavaScript 앱키</label>
-              <input class="input" id="cfgJsKey" placeholder="카카오 디벨로퍼스 → 앱 키 → JavaScript 키" autocomplete="off" />
-              <p class="hint">지도 표시·장소검색·주소검색에 사용합니다. <b>[플랫폼 → Web]</b>에 현재 도메인을 반드시 등록하세요.<br>현재 도메인: <code id="curOrigin">–</code></p>
-            </div>
-            <button class="btn btn-primary btn-block" id="btnApplyJsKey">지도 다시 불러오기</button>
+          <h3 class="section-title">설정 마법사</h3>
+          <p class="hint" style="margin:-4px 0 10px">
+            카카오 API 키를 넣고 <b>각 단계가 실제로 되는지 그 자리에서 확인</b>합니다.
+            아래 단계를 위에서부터 하나씩 통과시키면 됩니다.
+          </p>
+          <div class="wiz" id="wizard">
+
+            <!-- 1단계: 실행 환경 -->
+            <section class="wiz-step" id="wizEnv" data-state="pending">
+              <div class="wiz-head">
+                <span class="wiz-num">1</span>
+                <div class="wiz-title"><b>실행 환경</b><span id="wizEnvSub">확인 중…</span></div>
+              </div>
+              <div class="wiz-body" id="wizEnvBody"></div>
+            </section>
+
+            <!-- 2단계: 지도 (JavaScript 앱키) -->
+            <section class="wiz-step" id="wizMap" data-state="pending">
+              <div class="wiz-head">
+                <span class="wiz-num">2</span>
+                <div class="wiz-title"><b>지도 · 주소검색</b><span id="wizMapSub">JavaScript 앱키가 필요합니다</span></div>
+              </div>
+              <div class="wiz-body" id="wizMapBody"></div>
+            </section>
+
+            <!-- 3단계: 실제 도로거리 (REST 키) -->
+            <section class="wiz-step" id="wizNavi" data-state="pending">
+              <div class="wiz-head">
+                <span class="wiz-num">3</span>
+                <div class="wiz-title"><b>실제 도로거리</b><span id="wizNaviSub">REST API 키가 필요합니다</span></div>
+              </div>
+              <div class="wiz-body" id="wizNaviBody"></div>
+            </section>
+
           </div>
         </div>
 
         <div class="section">
-          <h3 class="section-title">도로거리 계산 (카카오모빌리티)</h3>
-          <div class="card">
-            <div class="field">
-              <span class="field-label">거리 산출 방식</span>
-              <div class="segmented" id="segDistMode" role="group">
-                <button data-val="road" aria-pressed="true">🛣️ 실제 도로거리</button>
-                <button data-val="straight" aria-pressed="false">📐 직선거리(추정)</button>
+          <details id="advSettings">
+            <summary class="section-title" style="cursor:pointer;list-style:revert">고급 설정</summary>
+
+            <div class="card" style="margin-top:9px">
+              <div class="field">
+                <span class="field-label">거리 산출 방식</span>
+                <div class="segmented" id="segDistMode" role="group">
+                  <button data-val="road" aria-pressed="true">🛣️ 실제 도로거리</button>
+                  <button data-val="straight" aria-pressed="false">📐 직선거리(추정)</button>
+                </div>
+              </div>
+
+              <div id="roadCfg">
+                <div class="field">
+                  <span class="field-label">길찾기 API 호출 경로</span>
+                  <div class="segmented" id="segTransport" role="group">
+                    <button data-val="same-origin" aria-pressed="true">같은 오리진 (권장)</button>
+                    <button data-val="proxy" aria-pressed="false">별도 프록시</button>
+                    <button data-val="direct" aria-pressed="false">브라우저 직접</button>
+                  </div>
+                  <p class="hint">
+                    <b>같은 오리진</b>: 개발 서버가 앱과 API 를 함께 서빙 — CORS 자체가 발생하지 않습니다.<br>
+                    <b>브라우저 직접</b>: 카카오모빌리티는 CORS 헤더를 주지 않아 <b>대부분 차단</b>됩니다.
+                  </p>
+                </div>
+
+                <div class="field" id="proxyField" hidden>
+                  <label for="cfgProxy">프록시 URL</label>
+                  <div class="row">
+                    <input class="input" id="cfgProxy" placeholder="http://localhost:8787" autocomplete="off" />
+                    <button class="btn btn-sm" id="btnTestProxy">연결 테스트</button>
+                  </div>
+                  <p class="hint">별도 프록시: <code>node tools/kakao-proxy.mjs</code></p>
+                </div>
+
+                <div class="field">
+                  <span class="field-label">직선거리 폴백 우회계수</span>
+                  <div class="row">
+                    <input class="input tnum" id="cfgDetour" type="number" step="0.05" min="1" max="3" value="1.35" style="max-width:100px" />
+                    <span style="font-size:11px;color:var(--text-3)">× 직선거리 (도로 API 실패 구간에만 적용)</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div id="roadCfg">
-              <div class="field">
-                <span class="field-label">호출 경로</span>
-                <div class="segmented" id="segTransport" role="group">
-                  <button data-val="proxy" aria-pressed="true">프록시 경유 (권장)</button>
-                  <button data-val="direct" aria-pressed="false">브라우저 직접</button>
-                </div>
-                <p class="hint">카카오모빌리티 API는 CORS 헤더를 제공하지 않아 <b>브라우저 직접 호출은 대부분 차단</b>됩니다. 동봉한 프록시를 사용하세요.</p>
-              </div>
-
-              <div class="field" id="proxyField">
-                <label for="cfgProxy">프록시 URL</label>
-                <div class="row">
-                  <input class="input" id="cfgProxy" placeholder="http://localhost:8787" autocomplete="off" />
-                  <button class="btn btn-sm" id="btnTestProxy">연결 테스트</button>
-                </div>
-                <p class="hint">실행: <code>KAKAO_REST_KEY=키 node tools/kakao-proxy.mjs</code></p>
-              </div>
-
-              <div class="field">
-                <label for="cfgRestKey">REST API 키 <span style="font-weight:500;color:var(--text-3)">(프록시에 키를 넣었다면 비워두세요)</span></label>
-                <input class="input" id="cfgRestKey" type="password" placeholder="KakaoAK 뒤에 올 REST 키" autocomplete="off" />
-                <p class="hint">브라우저에 저장되므로 <b>공용 PC에서는 프록시 방식</b>을 사용하세요.</p>
-              </div>
-
-              <div class="field">
-                <span class="field-label">직선거리 폴백 우회계수</span>
-                <div class="row">
-                  <input class="input tnum" id="cfgDetour" type="number" step="0.05" min="1" max="3" value="1.35" style="max-width:100px" />
-                  <span style="font-size:11px;color:var(--text-3)">× 직선거리 (도로 API 실패 구간에만 적용)</span>
-                </div>
+            <div class="card">
+              <p style="margin:0 0 9px;font-size:12px;color:var(--text-2)">
+                조회한 구간 거리를 브라우저에 저장해 재최적화 시 API 호출을 생략합니다.
+                <br><b class="tnum" id="cacheStat">0건</b> 저장됨
+              </p>
+              <div class="grid-2">
+                <button class="btn btn-sm" id="btnClearCache">캐시 비우기</button>
+                <button class="btn btn-sm btn-danger" id="btnResetAll">전체 초기화</button>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div class="section">
-          <h3 class="section-title">거리 캐시</h3>
-          <div class="card">
-            <p style="margin:0 0 9px;font-size:12px;color:var(--text-2)">
-              조회한 구간 거리를 브라우저에 저장해 재최적화 시 API 호출을 생략합니다.
-              <br><b class="tnum" id="cacheStat">0건</b> 저장됨
-            </p>
-            <div class="grid-2">
-              <button class="btn btn-sm" id="btnClearCache">캐시 비우기</button>
-              <button class="btn btn-sm btn-danger" id="btnResetAll">전체 초기화</button>
+            <div class="card">
+              <span class="field-label">데이터</span>
+              <div class="grid-2" style="margin-top:4px">
+                <button class="btn btn-sm" id="btnExportJson">💾 설정·데이터 내보내기</button>
+                <button class="btn btn-sm" id="btnImportJson">📂 불러오기</button>
+              </div>
+              <input type="file" id="fileImport" accept="application/json" class="sr-only" />
+              <p class="hint">내보내기에는 <b>API 키가 포함되지 않습니다.</b></p>
             </div>
-          </div>
-        </div>
-
-        <div class="section">
-          <h3 class="section-title">데이터</h3>
-          <div class="grid-2">
-            <button class="btn btn-sm" id="btnExportJson">💾 설정·데이터 내보내기</button>
-            <button class="btn btn-sm" id="btnImportJson">📂 불러오기</button>
-          </div>
-          <input type="file" id="fileImport" accept="application/json" class="sr-only" />
+          </details>
         </div>
       </div>
     </aside>
@@ -1106,7 +1181,7 @@ function defaultState() {
   return {
     settings: {
       jsKey: '', restKey: '', proxyUrl: 'http://localhost:8787',
-      distMode: 'road', transport: 'proxy', detour: 1.35,
+      distMode: 'road', transport: 'same-origin', detour: 1.35,
     },
     depot: { name: '중앙 물류센터', addr: '서울 송파구 양재대로 932', lat: 37.4926, lng: 127.1183 },
     vehicles: [defaultVehicle(0), defaultVehicle(1), defaultVehicle(2)],
@@ -1127,6 +1202,7 @@ const RT = {
   map: null, sdkReady: false, geocoder: null, places: null,
   overlays: [], polylines: [],
   matrix: null, solution: null,
+  devServer: null,         // /__status 가 응답하면 { port, origin, hasRestKey, ... }
   picking: null,           // 'stop' | 'depot' | null
   editingId: null,
   focusVehicle: null,      // 특정 차량만 강조
@@ -1293,6 +1369,8 @@ async function initMap() {
 
 function naviUrl(path) {
   const t = S.settings;
+  // 같은 오리진: 개발 서버가 앱과 API 를 함께 서빙 → 상대 경로. CORS 자체가 없다.
+  if (t.transport === 'same-origin') return path;
   if (t.transport === 'proxy') {
     const base = (t.proxyUrl || '').trim().replace(/\/+$/, '');
     if (!base) throw new Error('프록시 URL이 비어 있습니다');
@@ -1312,7 +1390,14 @@ function naviHeaders() {
 /** 도로 API 호출 가능 여부를 사전 점검 */
 function assertRoadConfig() {
   const t = S.settings;
-  if (t.transport === 'proxy') {
+  if (t.transport === 'same-origin') {
+    if (!RT.devServer) {
+      throw new Error('개발 서버가 감지되지 않았습니다. node tools/dev-server.mjs 로 실행한 주소에서 열어주세요.');
+    }
+    if (!RT.devServer.hasRestKey && !(t.restKey || '').trim()) {
+      throw new Error('REST API 키가 없습니다. 설정 탭 3단계에서 입력하거나 .env 에 KAKAO_REST_KEY 를 넣으세요.');
+    }
+  } else if (t.transport === 'proxy') {
     if (!(t.proxyUrl || '').trim()) throw new Error('프록시 URL을 설정 탭에서 입력하세요.');
   } else if (!(t.restKey || '').trim()) {
     throw new Error('브라우저 직접 호출에는 REST API 키가 필요합니다.');
@@ -2987,6 +3072,275 @@ function renderTable() {
   host.append(tbl);
 }
 
+
+/* ============================================================================
+ * 7-2. 설정 마법사
+ * ----------------------------------------------------------------------------
+ * 사용자가 카카오 API 키를 직접 넣고, 각 단계가 **실제로 되는지 그 자리에서**
+ * 확인하게 한다. 성공을 추정하지 않는다 — 실제 호출이 성공해야 통과다.
+ * ========================================================================== */
+
+const WIZ = { env: 'pending', map: 'pending', navi: 'pending' };
+
+/** 개발 서버(tools/dev-server.mjs)가 이 앱을 서빙하고 있는지 확인 */
+async function detectDevServer() {
+  if (location.protocol === 'file:') return null;
+  try {
+    const res = await fetch('/__status', { cache: 'no-store' });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j && j.server === 'tms-dev-server' ? j : null;
+  } catch { return null; }
+}
+
+function setWizState(step, state, sub) {
+  WIZ[step] = state;
+  const id = { env: 'wizEnv', map: 'wizMap', navi: 'wizNavi' }[step];
+  const node = $('#' + id);
+  if (!node) return;
+  node.dataset.state = state;
+  const subEl = $('#' + id + 'Sub');
+  if (subEl && sub !== undefined) subEl.textContent = sub;
+}
+
+/** 복사 버튼이 달린 한 줄 (등록할 도메인·실행 명령 등) */
+function copyRow(text, label = '복사') {
+  const btn = el('button', {
+    class: 'btn btn-sm', text: label,
+    onclick: async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = '복사됨 ✓';
+      } catch {
+        // 비보안 컨텍스트 등 클립보드 API 가 막힌 경우 — 선택만 해준다
+        const r = document.createRange();
+        r.selectNodeContents(codeEl);
+        const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+        btn.textContent = '선택됨';
+      }
+      setTimeout(() => { btn.textContent = label; }, 1600);
+    },
+  });
+  const codeEl = el('code', { text });
+  return el('div', { class: 'copy-row' }, codeEl, btn);
+}
+
+/* ------------------------------------------------------- 1단계: 실행 환경 */
+function renderWizEnv() {
+  const body = $('#wizEnvBody');
+  if (!body) return;
+  body.textContent = '';
+  const isFile = location.protocol === 'file:';
+  const dev = RT.devServer;
+
+  if (isFile) {
+    setWizState('env', 'fail', 'file:// 로 열려 있어 지도가 동작하지 않습니다');
+    body.append(
+      el('p', { class: 'hint', style: 'margin-top:0',
+        html: '카카오맵 SDK는 <b>등록된 도메인</b>에서만 동작합니다. 파일을 직접 열면 도메인이 없어 앱키를 넣어도 지도가 뜨지 않습니다.' }),
+      el('p', { class: 'field-label', style: 'margin-top:8px', text: '저장소 폴더에서 아래 명령을 실행하세요' }),
+      copyRow('node tools/dev-server.mjs'),
+      el('p', { class: 'hint', html: 'Windows 는 <code>start.bat</code>, macOS·Linux 는 <code>./start.sh</code> 를 더블클릭해도 됩니다. 실행하면 열어야 할 주소가 표시됩니다.' }),
+    );
+    return;
+  }
+
+  const origin = location.origin;
+  if (dev) {
+    setWizState('env', 'ok', `개발 서버 감지됨 · ${origin}`);
+    body.append(
+      el('p', { class: 'field-label', style: 'margin-top:0', text: '카카오 디벨로퍼스에 등록할 사이트 도메인' }),
+      copyRow(origin),
+      el('p', { class: 'hint', html: '내 애플리케이션 → <b>앱 설정 → 플랫폼 → Web</b> 에 위 주소를 그대로 등록하세요.' }),
+      el('p', { class: 'hint', style: 'margin-top:6px',
+        html: dev.hasRestKey
+          ? '길찾기 REST 키가 <b>서버(.env)에서 로드</b>되어 있습니다 — 브라우저에 노출되지 않습니다.'
+          : '길찾기 REST 키는 아직 없습니다. 3단계에서 입력하거나 <code>.env</code> 에 넣으세요.' }),
+    );
+  } else {
+    setWizState('env', 'fail', '개발 서버가 아닌 곳에서 열렸습니다');
+    body.append(
+      el('p', { class: 'hint', style: 'margin-top:0',
+        html: `현재 주소 <code>${esc(origin)}</code> 에서 <code>/__status</code> 응답이 없습니다. 다른 정적 서버로 띄운 것 같습니다.` }),
+      el('p', { class: 'hint', style: 'margin-top:6px',
+        html: '지도는 이 주소를 카카오에 등록하면 동작하지만, <b>실제 도로거리</b>는 같은 오리진 프록시가 없어 CORS 로 막힙니다. 개발 서버 사용을 권장합니다.' }),
+      copyRow('node tools/dev-server.mjs'),
+      el('p', { class: 'field-label', style: 'margin-top:8px', text: '이 주소를 그대로 쓰려면 등록할 도메인' }),
+      copyRow(origin),
+    );
+  }
+}
+
+/* --------------------------------------------- 2단계: 지도 · 주소검색 (JS 키) */
+function renderWizMap() {
+  const body = $('#wizMapBody');
+  if (!body) return;
+  body.textContent = '';
+
+  const input = el('input', {
+    class: 'input', id: 'wizJsKey', autocomplete: 'off', type: 'text',
+    placeholder: 'JavaScript 키 (32자리)', value: S.settings.jsKey,
+  });
+  const btn = el('button', { class: 'btn btn-primary btn-sm', text: '확인', onclick: () => checkMapKey() });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); checkMapKey(); } });
+
+  body.append(
+    el('p', { class: 'hint', style: 'margin-top:0',
+      html: '카카오 디벨로퍼스 → 내 애플리케이션 → <b>앱 키 → JavaScript 키</b>' }),
+    el('div', { class: 'row', style: 'margin-top:6px' }, input, btn),
+    el('p', { class: 'hint', id: 'wizMapMsg' }),
+  );
+  if (WIZ.map === 'ok') {
+    body.append(el('p', { class: 'hint', style: 'color:#0a7a0a',
+      html: '지도와 주소검색이 정상 동작합니다. 납품처 탭에서 장소 검색을 쓸 수 있습니다.' }));
+  }
+}
+
+async function checkMapKey() {
+  const key = ($('#wizJsKey')?.value || '').trim();
+  const msg = $('#wizMapMsg');
+  if (!key) { toast('JavaScript 앱키를 입력하세요', 'warn'); $('#wizJsKey')?.focus(); return; }
+
+  S.settings.jsKey = key;
+  saveState();
+  setWizState('map', 'checking', '지도 SDK 를 불러오는 중…');
+  if (msg) msg.textContent = '';
+
+  // 1) SDK 스크립트 자체가 받아지는가
+  sdkLoadPromise = null;
+  RT.sdkReady = false;
+  try {
+    await loadKakaoSdk(key);
+  } catch (err) {
+    setWizState('map', 'fail', 'SDK 를 불러오지 못했습니다');
+    if (msg) msg.innerHTML = `<b>원인 후보</b><br>· 앱키가 틀렸을 수 있습니다 (JavaScript 키인지 확인 — REST 키와 다릅니다)<br>· 네트워크·사내 방화벽이 <code>dapi.kakao.com</code> 을 막고 있을 수 있습니다<br><br><code>${esc(err.message)}</code>`;
+    return;
+  }
+
+  // 2) 지도 객체가 만들어지는가
+  setWizState('map', 'checking', '지도를 생성하는 중…');
+  const mapOk = await initMap();
+  if (!mapOk) {
+    setWizState('map', 'fail', '지도 생성에 실패했습니다');
+    if (msg) msg.textContent = '지도 영역 초기화에 실패했습니다. 새로고침 후 다시 시도해 주세요.';
+    return;
+  }
+
+  // 3) 도메인 등록 여부는 services 호출로만 알 수 있다 (SDK 로드는 성공해도 호출이 거부될 수 있음)
+  setWizState('map', 'checking', '도메인 등록 여부를 확인하는 중…');
+  const probe = await new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => { if (!done) { done = true; resolve('TIMEOUT'); } }, 8000);
+    try {
+      RT.geocoder.addressSearch('서울특별시 중구 세종대로 110', (_data, status) => {
+        if (done) return;
+        done = true; clearTimeout(timer);
+        resolve(String(status));
+      });
+    } catch (err) {
+      if (!done) { done = true; clearTimeout(timer); resolve('THREW:' + err.message); }
+    }
+  });
+
+  const St = window.kakao?.maps?.services?.Status || {};
+  if (probe === String(St.OK) || probe === String(St.ZERO_RESULT)) {
+    setWizState('map', 'ok', '지도 · 주소검색 정상');
+    if (msg) msg.textContent = '';
+    renderWizMap();
+    renderAll();
+    toast('지도가 연결되었습니다', 'good');
+  } else {
+    setWizState('map', 'fail', '주소검색이 거부되었습니다 — 도메인 등록을 확인하세요');
+    if (msg) {
+      msg.innerHTML = `SDK 는 받아졌지만 검색 API 호출이 거부되었습니다 (<code>${esc(probe)}</code>).<br>`
+        + `가장 흔한 원인은 <b>사이트 도메인 미등록</b>입니다. 아래 주소를 [플랫폼 → Web] 에 등록했는지 확인하세요.`;
+      msg.after(copyRow(location.origin));
+    }
+  }
+}
+
+/* ------------------------------------------- 3단계: 실제 도로거리 (REST 키) */
+function renderWizNavi() {
+  const body = $('#wizNaviBody');
+  if (!body) return;
+  body.textContent = '';
+  const dev = RT.devServer;
+
+  if (S.settings.distMode !== 'road') {
+    setWizState('navi', 'pending', '직선거리 모드입니다 — 도로거리를 쓰려면 전환하세요');
+    body.append(
+      el('p', { class: 'hint', style: 'margin-top:0', text: '현재 거리 산출 방식이 "직선거리(추정)" 입니다.' }),
+      el('button', { class: 'btn btn-sm', text: '🛣️ 실제 도로거리로 전환', onclick: () => {
+        S.settings.distMode = 'road'; saveState();
+        $$('#segDistMode button[data-val]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.val === 'road')));
+        $('#roadCfg').style.display = '';
+        invalidateSolution(); renderAll(); renderWizard();
+      } }),
+    );
+    return;
+  }
+
+  if (dev && dev.hasRestKey) {
+    body.append(el('p', { class: 'hint', style: 'margin-top:0',
+      html: 'REST 키가 <b>서버의 .env 에서 로드</b>되어 있습니다. 브라우저에 노출되지 않습니다.' }));
+  } else {
+    const input = el('input', {
+      class: 'input', id: 'wizRestKey', type: 'password', autocomplete: 'off',
+      placeholder: 'REST API 키', value: S.settings.restKey,
+    });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); checkNaviKey(); } });
+    body.append(
+      el('p', { class: 'hint', style: 'margin-top:0',
+        html: '카카오 디벨로퍼스 → 내 애플리케이션 → <b>앱 키 → REST API 키</b>' }),
+      el('div', { class: 'row', style: 'margin-top:6px' }, input),
+      el('p', { class: 'hint',
+        html: '공용 PC 라면 앱에 넣는 대신 저장소의 <code>.env</code> 에 <code>KAKAO_REST_KEY=키</code> 로 넣으세요 (더 안전, 서버 재시작 불필요).' }),
+    );
+  }
+
+  body.append(
+    el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:8px',
+      text: '실제 길찾기 호출로 확인', onclick: () => checkNaviKey() }),
+    el('p', { class: 'hint', id: 'wizNaviMsg' }),
+  );
+}
+
+async function checkNaviKey() {
+  const msg = $('#wizNaviMsg');
+  const keyInput = $('#wizRestKey');
+  if (keyInput) { S.settings.restKey = keyInput.value.trim(); saveState(); }
+
+  setWizState('navi', 'checking', '서울역 → 강남역 경로를 조회하는 중…');
+  if (msg) msg.textContent = '';
+
+  try {
+    assertRoadConfig();
+    // 실제 호출로만 검증한다. 응답이 오지 않으면 통과가 아니다.
+    const r = await fetchSingle({ lat: 37.5547, lng: 126.9707 }, { lat: 37.4979, lng: 127.0276 });
+    if (!r) throw new Error('API 는 응답했지만 경로를 찾지 못했습니다. 좌표나 요청 형식을 확인하세요.');
+    setWizState('navi', 'ok', `정상 · 서울역→강남역 ${(r.dist / 1000).toFixed(1)}km / ${Math.round(r.time / 60)}분`);
+    if (msg) msg.innerHTML = '실제 도로거리로 최적화할 준비가 끝났습니다.';
+    dismissAlert('proxyhint');
+    dismissAlert('optfail');
+    toast('길찾기 API 연결 확인', 'good');
+  } catch (err) {
+    const m = decorateNaviError(err).message;
+    setWizState('navi', 'fail', '길찾기 호출에 실패했습니다');
+    if (msg) {
+      msg.innerHTML = `<code>${esc(m)}</code><br><br><b>확인할 것</b>`
+        + '<br>· <b>REST API 키</b>가 맞는지 (JavaScript 키와 다릅니다)'
+        + '<br>· 카카오모빌리티 <b>길찾기 API 이용 신청</b>이 되어 있는지'
+        + '<br>· 사내 방화벽이 <code>apis-navi.kakaomobility.com</code> 을 막지 않는지';
+    }
+  }
+}
+
+function renderWizard() {
+  renderWizEnv();
+  renderWizMap();
+  renderWizNavi();
+}
+
 /* ============================================================================
  * 8. 입력 · 이벤트 · 부트스트랩
  * ========================================================================== */
@@ -3689,21 +4043,9 @@ function bindEvents() {
   $('#optSpeed').value = String(S.options.speedKmh);
   $('#optSpeed').addEventListener('change', (e) => { S.options.speedKmh = clamp(num(e.target.value, 30), 5, 120); saveState(); });
 
-  /* --- 설정 --- */
-  $('#curOrigin').textContent = location.origin === 'null' ? 'file:// (로컬 파일)' : location.origin;
-  $('#cfgJsKey').value = S.settings.jsKey;
-  $('#cfgRestKey').value = S.settings.restKey;
+  /* --- 설정 (고급) --- */
   $('#cfgProxy').value = S.settings.proxyUrl;
   $('#cfgDetour').value = String(S.settings.detour);
-
-  $('#btnApplyJsKey').addEventListener('click', async () => {
-    S.settings.jsKey = $('#cfgJsKey').value.trim();
-    saveState();
-    sdkLoadPromise = null; RT.sdkReady = false;
-    const ok = await initMap();
-    if (ok) toast('지도를 불러왔습니다', 'good');
-  });
-  $('#cfgRestKey').addEventListener('change', (e) => { S.settings.restKey = e.target.value.trim(); saveState(); });
   $('#cfgProxy').addEventListener('change', (e) => { S.settings.proxyUrl = e.target.value.trim(); saveState(); });
   $('#cfgDetour').addEventListener('change', (e) => {
     S.settings.detour = clamp(num(e.target.value, 1.35), 1, 3);
@@ -3717,11 +4059,13 @@ function bindEvents() {
     else { dismissAlert('proxyhint'); dismissAlert('estimated'); }
   };
   bindSegmented('#segDistMode', () => S.settings.distMode, (v) => {
-    S.settings.distMode = v; syncRoadCfg(); invalidateSolution(); saveState(); renderAll();
+    S.settings.distMode = v; syncRoadCfg(); invalidateSolution(); saveState(); renderAll(); renderWizard();
   });
   syncRoadCfg();
-  const syncTransport = () => { $('#proxyField').style.display = S.settings.transport === 'proxy' ? '' : 'none'; };
-  bindSegmented('#segTransport', () => S.settings.transport, (v) => { S.settings.transport = v; syncTransport(); syncProxyHint(); saveState(); });
+  const syncTransport = () => { $('#proxyField').hidden = S.settings.transport !== 'proxy'; };
+  bindSegmented('#segTransport', () => S.settings.transport, (v) => {
+    S.settings.transport = v; syncTransport(); syncProxyHint(); saveState(); renderWizard();
+  });
   syncTransport();
 
   $('#btnTestProxy').addEventListener('click', async () => {
@@ -3806,12 +4150,17 @@ function updateCacheStat() {
 
 /** 도로거리 + 프록시 조합일 때만 프록시 실행 안내를 띄운다 */
 function syncProxyHint() {
-  if (S.settings.distMode === 'road' && S.settings.transport === 'proxy') {
-    showAlert('proxyhint', 'info', '도로거리 모드입니다',
-      '카카오모빌리티 API는 CORS를 허용하지 않으므로 프록시가 필요합니다.<br>'
-      + '<code>KAKAO_REST_KEY=키 node tools/kakao-proxy.mjs</code>');
+  if (S.settings.distMode !== 'road') { dismissAlert('proxyhint'); return; }
+  if (S.settings.transport === 'proxy') {
+    showAlert('proxyhint', 'info', '별도 프록시가 필요합니다',
+      '카카오모빌리티 API는 CORS를 허용하지 않습니다.<br>'
+      + '<code>node tools/kakao-proxy.mjs</code><br>'
+      + '개발 서버(<code>node tools/dev-server.mjs</code>)로 열면 프록시 없이 동작합니다.');
+  } else if (S.settings.transport === 'direct') {
+    showAlert('proxyhint', 'warn', '브라우저 직접 호출은 대부분 차단됩니다',
+      '카카오모빌리티 API는 CORS 헤더를 주지 않습니다. 개발 서버 사용을 권장합니다.');
   } else {
-    dismissAlert('proxyhint');
+    dismissAlert('proxyhint');   // same-origin — 안내할 것이 없다
   }
 }
 
@@ -3828,6 +4177,10 @@ window.__loadSample = loadSample;
 window.__saveState = saveState;
 window.__handleMapPick = handleMapPick;
 window.__routeStyle = routeStyle;
+window.__renderWizard = renderWizard;
+window.__checkMapKey = checkMapKey;
+window.__checkNaviKey = checkNaviKey;
+window.__detectDevServer = detectDevServer;
 window.__vehicleOf = vehicleOf;
 
 /* ============================================================================
@@ -3850,12 +4203,31 @@ window.__vehicleOf = vehicleOf;
   renderAll();
   switchDock('timeline');
 
+  // 개발 서버 위에서 열렸는지 확인 — 맞으면 같은 오리진 프록시를 쓸 수 있다
+  RT.devServer = await detectDevServer();
+  if (RT.devServer) {
+    if (S.settings.transport !== 'proxy' && S.settings.transport !== 'direct') {
+      S.settings.transport = 'same-origin';
+    }
+  } else if (S.settings.transport === 'same-origin') {
+    // 개발 서버가 아니면 같은 오리진 프록시가 없다. 별도 프록시로 되돌린다.
+    S.settings.transport = 'proxy';
+  }
+  $$('#segTransport button[data-val]').forEach((b) =>
+    b.setAttribute('aria-pressed', String(b.dataset.val === S.settings.transport)));
+  $('#proxyField').hidden = S.settings.transport !== 'proxy';
+  saveState();
+
+  renderWizard();
+
   if (S.settings.jsKey) {
-    await initMap();
+    const ok = await initMap();
+    if (ok) setWizState('map', 'ok', '지도 · 주소검색 정상');
+    renderWizard();
   } else {
     showAlert('nokey', 'info', '카카오 JavaScript 앱키를 등록하세요',
-      '설정 탭 → JavaScript 앱키 입력 후 [지도 다시 불러오기]. '
-      + '키가 없어도 CSV 입력·최적화·결과표는 동작하지만 지도는 표시되지 않습니다.');
+      '설정 탭의 <b>설정 마법사</b>가 단계별로 안내합니다. '
+      + '키가 없어도 CSV 입력·최적화·결과표는 동작하며, 지도는 간이 지도로 대체됩니다.');
   }
 
   syncProxyHint();
