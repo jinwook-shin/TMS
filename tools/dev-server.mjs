@@ -264,6 +264,16 @@ async function handle(req, res) {
       filePath = path.join(filePath, 'index.html');
       stat = await fsp.stat(filePath);
     }
+    // 경로 문자열 검사만으로는 부족하다 — 저장소 안의 심볼릭 링크가 밖을 가리키면
+    // 그대로 따라가 버린다. 실제 경로를 풀어 루트 안에 있는지 다시 확인한다.
+    const real = await fsp.realpath(filePath);
+    const realRoot = await fsp.realpath(ROOT);
+    if (real !== realRoot && !real.startsWith(realRoot + path.sep)) {
+      console.warn(`  심볼릭 링크 탈출 차단: ${pathname} → ${real}`);
+      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('403 저장소 밖을 가리키는 링크입니다');
+      return;
+    }
     const ext = path.extname(filePath).toLowerCase();
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',

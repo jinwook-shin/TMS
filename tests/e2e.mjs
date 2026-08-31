@@ -23,6 +23,9 @@ page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message + '\n' + (e.stac
 
 // 카카오 SDK는 앱키가 없으므로 로드 실패가 정상. 요청 자체를 차단해 대기시간을 없앤다.
 await page.route('**/dapi.kakao.com/**', r => r.abort());
+// 이 스위트는 타일을 검증하지 않는다 — 네트워크 잡음 제거 (타일 전용 검증은 e2e-tilemap.mjs)
+await page.route('**/tile.openstreetmap.org/**', (r) => r.abort());
+await page.route('**/basemaps.cartocdn.com/**', (r) => r.abort());
 
 const waitOpt = async () => {
   await page.waitForFunction(() => !document.querySelector('#progressModal').hidden, null, { timeout: 15000 }).catch(()=>{});

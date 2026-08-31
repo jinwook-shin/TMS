@@ -33,6 +33,9 @@ const SDK_MOCK = `(function(){
 const b = await launchChromium(); const pg=await b.newPage({viewport:{width:1600,height:950}});
 const errs=[]; pg.on('pageerror',e=>errs.push(e.message)); pg.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
 await pg.route('**/dapi.kakao.com/**', r=>r.fulfill({status:200,contentType:'text/javascript',body:SDK_MOCK}));
+// 이 스위트는 타일을 검증하지 않는다 — 네트워크 잡음 제거 (타일 전용 검증은 e2e-tilemap.mjs)
+await pg.route('**/tile.openstreetmap.org/**', (r) => r.abort());
+await pg.route('**/basemaps.cartocdn.com/**', (r) => r.abort());
 
 const R=[]; const check=(n,ok,d='')=>{R.push(ok);console.log(`${ok?'✅':'❌'} ${n}${d?' — '+d:''}`)};
 
@@ -90,7 +93,8 @@ check('5번째 차량부터 선 패턴으로 구분',
 const ov = await pg.evaluate(()=>window.__ov.length);
 check('결과 마커 렌더링', ov >= 17, `${ov}개`);
 // /__status 404 는 정상 — 개발 서버가 아닌 곳에서 열렸음을 감지하는 과정이다
-const realErrs = errs.filter(e => !/Failed to load resource.*404/i.test(e));
+// 404(=/__status 없음)와 ERR_FAILED(=테스트가 일부러 막은 타일)는 예상된 잡음이다
+const realErrs = errs.filter(e => !/Failed to load resource.*(404|ERR_FAILED|ERR_TUNNEL)/i.test(e));
 check('콘솔 에러 없음', realErrs.length===0, realErrs.slice(0,2).join(' | '));
 
 // R7. 색은 경로 순서가 아니라 차량을 따라가는가

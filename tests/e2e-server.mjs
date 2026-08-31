@@ -111,10 +111,25 @@ try {
     `HTTP ${await rawStatus('evil.example.com')}`);
   check('F4 정상 Host 는 통과', await rawStatus(`localhost:${PORT}`) === 200);
 
+  // 저장소 안의 심볼릭 링크가 밖을 가리켜도 따라가지 않는가
+  const linkPath = path.join(ROOT, '.e2e-escape-link');
+  let symlinkBlocked = 'skip';
+  try {
+    fs.symlinkSync('/etc', linkPath);
+    const r = await fetch(`http://localhost:${PORT}/.e2e-escape-link/hostname`);
+    symlinkBlocked = r.status;
+  } catch { /* 심볼릭 링크를 못 만드는 환경이면 건너뛴다 */ }
+  finally { try { fs.unlinkSync(linkPath); } catch {} }
+  check('심볼릭 링크 탈출 차단', symlinkBlocked === 403 || symlinkBlocked === 'skip',
+    symlinkBlocked === 'skip' ? '이 환경에서는 건너뜀' : `HTTP ${symlinkBlocked}`);
+
   const browser = await launchChromium();
   const pg = await browser.newPage({ viewport: { width: 1600, height: 950 } });
   const errs = []; pg.on('pageerror', (e) => errs.push(e.message));
   await pg.route('**/dapi.kakao.com/**', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: SDK_OK }));
+  // 이 스위트는 타일을 검증하지 않는다 — 네트워크 잡음 제거 (타일 전용 검증은 e2e-tilemap.mjs)
+  await pg.route('**/tile.openstreetmap.org/**', (r) => r.abort());
+  await pg.route('**/basemaps.cartocdn.com/**', (r) => r.abort());
   await pg.addInitScript(() => { try { localStorage.clear(); } catch {} });
 
   await pg.goto(`http://localhost:${PORT}/`, { waitUntil: 'domcontentloaded' });

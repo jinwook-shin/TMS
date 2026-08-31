@@ -3,6 +3,9 @@ const b = await launchChromium();
 const pg = await b.newPage({ viewport:{width:1600,height:950} });
 const errs=[]; pg.on('pageerror',e=>errs.push(e.message)); pg.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
 await pg.route('**/dapi.kakao.com/**', r=>r.abort());   // 앱키 없음 = 실제 상황
+// 이 스위트는 타일을 검증하지 않는다 — 네트워크 잡음 제거 (타일 전용 검증은 e2e-tilemap.mjs)
+await pg.route('**/tile.openstreetmap.org/**', (r) => r.abort());
+await pg.route('**/basemaps.cartocdn.com/**', (r) => r.abort());
 
 const R=[]; const check=(n,ok,d='')=>{R.push(ok);console.log(`${ok?'✅':'❌'} ${n}${d?' — '+d:''}`)};
 
@@ -14,14 +17,16 @@ check('file:// 로 앱 부팅', await pg.textContent('#badgeStops') === '15');
 check('localStorage 동작', await pg.evaluate(()=>{ try{localStorage.setItem('t','1');return localStorage.getItem('t')==='1';}catch(e){return false;} }));
 
 const fb = await pg.evaluate(()=>({
-  svg: !!document.querySelector('#map svg'),
-  circles: document.querySelectorAll('#map svg circle').length,
-  depot: document.querySelectorAll('#map svg rect[rx="6"]').length,
-  note: document.querySelector('#map div')?.textContent || '',
-  w: document.querySelector('#map svg')?.getAttribute('width'),
+  svg: !!document.querySelector('#mapOverlay'),
+  circles: document.querySelectorAll('#mapOverlay circle').length,
+  depot: document.querySelectorAll('#mapOverlay rect').length,
+  zoomBtns: document.querySelectorAll('.map-zoom-btn').length,
+  scale: document.querySelector('.map-scale span')?.textContent || '',
+  attr: document.querySelector('.map-attr')?.textContent || '',
 }));
-check('간이 지도 렌더링 (납품처 15 + 차고지)', fb.svg && fb.circles===15 && fb.depot===1, JSON.stringify({c:fb.circles,d:fb.depot,w:fb.w}));
-check('간이 지도 안내 문구', fb.note.includes('간이 지도'), fb.note.slice(0,40));
+check('내장 지도 렌더링 (납품처 15 + 차고지)', fb.svg && fb.circles===15 && fb.depot===1, JSON.stringify({c:fb.circles,d:fb.depot}));
+check('줌 컨트롤 · 축척 · 출처 표기', fb.zoomBtns===3 && !!fb.scale && fb.attr.includes('OpenStreetMap'),
+  `줌버튼 ${fb.zoomBtns} · 축척 ${fb.scale} · ${fb.attr.slice(0,26)}`);
 
 // 도로거리 모드 그대로 최적화 → 실패 후 폴백 버튼이 떠야 함
 await pg.click('#btnOptimize');
@@ -41,12 +46,12 @@ await pg.waitForTimeout(500);
 const done = await pg.evaluate(()=>({
   dist: document.querySelector('#kpiDist').textContent.trim(),
   viol: document.querySelector('#kpiViol').textContent.trim(),
-  paths: document.querySelectorAll('#map svg path').length,
+  paths: document.querySelectorAll('#mapOverlay path').length,
   legend: document.querySelectorAll('#legendItems .legend-item').length,
   bars: document.querySelectorAll('#dockTimeline svg rect').length,
 }));
 check('폴백으로 최적화 완료', done.dist !== '–', JSON.stringify(done));
-check('간이 지도에 경로 그려짐 (케이싱+본선)', done.paths >= 2 && done.paths % 2 === 0, `${done.paths} paths / 코스 ${done.legend}개`);
+check('내장 지도에 경로 그려짐 (케이싱+본선)', done.paths >= 2 && done.paths % 2 === 0, `${done.paths} paths / 코스 ${done.legend}개`);
 check('타임라인 렌더링', done.bars > 20, `${done.bars} rects`);
 
 // CSV 내보내기가 file:// 에서도 되는가
@@ -62,7 +67,7 @@ check('처리되지 않은 콘솔 에러 없음', errs.filter(e=>!/dapi\.kakao|E
 const fit = await pg.evaluate(()=>{
   const dockTop = document.querySelector('#dock').getBoundingClientRect().top;
   const mapTop = document.querySelector('#map').getBoundingClientRect().top;
-  const nodes=[...document.querySelectorAll('#map svg circle, #map svg rect[rx="6"]')];
+  const nodes=[...document.querySelectorAll('#mapOverlay circle, #mapOverlay rect')];
   const hidden = nodes.filter(n=>{const r=n.getBoundingClientRect(); return r.bottom > dockTop || r.top < mapTop;});
   return { total:nodes.length, hidden:hidden.length };
 });

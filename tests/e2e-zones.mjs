@@ -23,6 +23,9 @@ const browser = await launchChromium();
 const pg = await browser.newPage({ viewport: { width: 1600, height: 950 } });
 const errs = []; pg.on('pageerror', (e) => errs.push(e.message));
 await pg.route('**/dapi.kakao.com/**', (r) => r.abort());
+// 이 스위트는 타일을 검증하지 않는다 — 네트워크 잡음 제거 (타일 전용 검증은 e2e-tilemap.mjs)
+await pg.route('**/tile.openstreetmap.org/**', (r) => r.abort());
+await pg.route('**/basemaps.cartocdn.com/**', (r) => r.abort());
 await pg.addInitScript(() => { try { localStorage.clear(); } catch {} });
 await pg.goto('http://localhost:4610/', { waitUntil: 'domcontentloaded' });
 await pg.waitForTimeout(1200);

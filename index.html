@@ -337,6 +337,42 @@ table{border-collapse:collapse;width:100%}
 .banner-close{margin-left:auto;flex-shrink:0;opacity:.6;font-size:13px;line-height:1}
 .banner-close:hover{opacity:1}
 
+/* 내장 타일 지도 (카카오 SDK 없이 동작) */
+.tile-layer{position:absolute;inset:0;overflow:hidden;background:#e8eaed}
+.tile-layer .tile{
+  position:absolute;width:256px;height:256px;
+  user-select:none;-webkit-user-drag:none;pointer-events:none;
+}
+.map-overlay{position:absolute;top:0;left:0;pointer-events:none;z-index:5}
+.map-overlay g{pointer-events:auto}
+#mapChrome{position:absolute;inset:0;pointer-events:none;z-index:15}
+#mapChrome > *{pointer-events:auto}
+.map-zoom{
+  position:absolute;top:12px;right:12px;display:flex;flex-direction:column;
+  border-radius:8px;overflow:hidden;box-shadow:var(--shadow-2);border:1px solid var(--ring);
+}
+.map-zoom-btn{
+  width:30px;height:30px;background:rgba(255,255,255,.96);color:var(--text-1);
+  font-size:15px;font-weight:600;line-height:1;display:grid;place-items:center;
+  transition:background .12s;
+}
+.map-zoom-btn:hover{background:var(--surface-3)}
+.map-zoom-btn + .map-zoom-btn{border-top:1px solid var(--line)}
+.map-scale{
+  position:absolute;bottom:14px;left:14px;height:9px;
+  border:2px solid rgba(75,85,99,.85);border-top:none;background:rgba(255,255,255,.45);
+}
+.map-scale span{
+  position:absolute;bottom:11px;left:0;white-space:nowrap;
+  font-size:10.5px;font-weight:600;color:#374151;
+  text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;
+}
+.map-attr{
+  position:absolute;bottom:2px;right:4px;font-size:9.5px;color:#4b5563;
+  background:rgba(255,255,255,.72);padding:1px 5px;border-radius:3px;
+}
+.map-wrap.is-picking .tile-layer{cursor:crosshair}
+
 /* 지도 마커 (커스텀 오버레이) */
 .mk{
   position:relative;transform:translate(-50%,-100%);
@@ -848,6 +884,24 @@ details#advSettings[open] > summary{margin-bottom:2px}
             </div>
 
             <div class="card">
+              <div class="field">
+                <label for="cfgTiles">지도 타일 <span style="font-weight:500;color:var(--text-3)">(카카오 앱키가 없을 때 쓰는 내장 지도)</span></label>
+                <select class="select" id="cfgTiles">
+                  <option value="osm">OpenStreetMap</option>
+                  <option value="carto">Carto Light (담백한 배경)</option>
+                  <option value="none">타일 없음 (좌표만)</option>
+                  <option value="custom">직접 지정…</option>
+                </select>
+              </div>
+              <div class="field" id="tilesCustomField" hidden>
+                <label for="cfgTilesUrl">타일 URL 형식</label>
+                <input class="input" id="cfgTilesUrl" placeholder="https://내부타일서버/{z}/{x}/{y}.png" autocomplete="off" />
+                <input class="input" id="cfgTilesAttr" placeholder="출처 표기 (선택)" autocomplete="off" style="margin-top:6px" />
+                <p class="hint">사내 타일 서버가 있다면 여기에 넣으세요. <code>{z}</code> <code>{x}</code> <code>{y}</code> 자리표시자를 씁니다.</p>
+              </div>
+            </div>
+
+            <div class="card">
               <p style="margin:0 0 9px;font-size:12px;color:var(--text-2)">
                 조회한 구간 거리를 브라우저에 저장해 재최적화 시 API 호출을 생략합니다.
                 <br><b class="tnum" id="cacheStat">0건</b> 저장됨
@@ -1293,6 +1347,7 @@ function defaultState() {
     settings: {
       jsKey: '', restKey: '', proxyUrl: 'http://localhost:8787',
       distMode: 'road', transport: 'same-origin', detour: 1.35,
+      tiles: 'osm', tilesCustom: '', tilesAttr: '',
       // 사용자가 호출 경로를 직접 고르면 false — 그 뒤로는 자동 전환하지 않는다
       transportAuto: true,
     },
@@ -2411,7 +2466,7 @@ function makeMarkerEl({ label, color, title, isDepot, warn, dim, focus }) {
 
 function renderMap() {
   renderLegend();                       // 범례는 지도 로드 여부와 무관하게 표시
-  if (!RT.map || !RT.sdkReady) { renderFallbackMap(); return; }
+  if (!RT.map || !RT.sdkReady) { renderLocalMap(); return; }
   const kakao = window.kakao;
   clearMapLayers();
 
@@ -2503,65 +2558,165 @@ function renderMap() {
 }
 
 /* ---------------------------------------------------------------------------
- * 간이 지도 (카카오 SDK 미로드 시)
- * 지도 타일은 없지만 좌표를 등거리원통도법으로 투영해 상대 위치·경로를 보여준다.
- * API 키 없이도 배차 결과를 검증할 수 있게 하려는 것.
+ * 내장 타일 지도 (카카오 SDK 없이 동작)
+ * ---------------------------------------------------------------------------
+ * 카카오맵 SDK 는 등록된 도메인에서만 동작해서 file:// 로 연 파일에서는 쓸 수 없다.
+ * 그래서 표준 슬리피 타일(Web Mercator)을 직접 그린다. 외부 라이브러리도, CDN 도
+ * 쓰지 않으므로 HTML 파일 하나만 있으면 실제 지도가 뜬다.
+ * 타일은 <img> 로 불러오므로 CORS 와 무관하다.
  * ------------------------------------------------------------------------- */
-function renderFallbackMap() {
+
+const TILE_SIZE = 256;
+const TILE_SOURCES = [
+  { key: 'osm',  name: 'OpenStreetMap', maxZoom: 19,
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attr: '© OpenStreetMap contributors' },
+  { key: 'carto', name: 'Carto Light (담백한 배경)', maxZoom: 19,
+    url: 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+    attr: '© OpenStreetMap contributors, © CARTO' },
+  { key: 'none', name: '타일 없음 (좌표만)', maxZoom: 19, url: '', attr: '' },
+];
+const tileSource = () => TILE_SOURCES.find((t) => t.key === S.settings.tiles)
+  || (S.settings.tilesCustom ? { key: 'custom', name: '직접 지정', url: S.settings.tilesCustom, attr: S.settings.tilesAttr || '', maxZoom: 19 } : TILE_SOURCES[0]);
+
+/* --- Web Mercator 투영 --- */
+const lngToWorldX = (lng, z) => (lng + 180) / 360 * TILE_SIZE * Math.pow(2, z);
+function latToWorldY(lat, z) {
+  const s = Math.sin(clamp(lat, -85.05, 85.05) * Math.PI / 180);
+  return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * TILE_SIZE * Math.pow(2, z);
+}
+const worldXToLng = (x, z) => x / (TILE_SIZE * Math.pow(2, z)) * 360 - 180;
+function worldYToLat(y, z) {
+  const n = Math.PI - 2 * Math.PI * y / (TILE_SIZE * Math.pow(2, z));
+  return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+}
+
+/** 지도 뷰 상태 (줌·중심) */
+function mapView() {
+  if (!RT.view) RT.view = { zoom: 11, lat: S.depot.lat, lng: S.depot.lng, fitted: false };
+  return RT.view;
+}
+
+/** 하단 도크가 가리는 높이 */
+function dockCover() {
+  const dock = $('#dock');
+  if (!dock) return 0;
+  return dock.classList.contains('is-collapsed') ? 39 : dock.offsetHeight;
+}
+
+/** 모든 지점이 보이도록 줌·중심을 맞춘다 */
+function fitViewToData() {
   const host = $('#map');
   if (!host) return;
-  host.textContent = '';
-
-  const W = host.clientWidth || 900, H = host.clientHeight || 600;
-  const pts = [{ lat: S.depot.lat, lng: S.depot.lng, depot: true },
-               ...S.stops.map((s, i) => ({ lat: s.lat, lng: s.lng, i }))];
+  const pts = [{ lat: S.depot.lat, lng: S.depot.lng }, ...S.stops.map((s) => ({ lat: s.lat, lng: s.lng }))];
   if (!pts.length) return;
+  const v = mapView();
+  const W = host.clientWidth || 900;
+  const H = (host.clientHeight || 600) - dockCover();
+  const padX = 80, padY = 70;
+  const availW = Math.max(120, W - padX * 2), availH = Math.max(120, H - padY * 2);
 
-  const NS = 'http://www.w3.org/2000/svg';
-  const mk = (tag, attrs = {}) => {
-    const n = document.createElementNS(NS, tag);
-    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
-    return n;
-  };
-  const svg = mk('svg', { width: W, height: H, style: 'display:block;background:#eef1f5' });
-  svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', '좌표 기반 간이 배송경로 표시');
-
-  // 등거리원통도법 — 위도대에 맞춰 경도를 축소해 가로세로 비율을 맞춘다
   const latMin = Math.min(...pts.map((p) => p.lat)), latMax = Math.max(...pts.map((p) => p.lat));
   const lngMin = Math.min(...pts.map((p) => p.lng)), lngMax = Math.max(...pts.map((p) => p.lng));
-  const kx = Math.cos((latMin + latMax) / 2 * Math.PI / 180);
-  const spanX = Math.max(1e-6, (lngMax - lngMin) * kx);
-  const spanY = Math.max(1e-6, latMax - latMin);
-  // 하단 도크가 지도를 덮으므로 그만큼 아래 여백을 비워 마커가 가려지지 않게 한다
-  const dock = $('#dock');
-  const dockH = dock ? (dock.classList.contains('is-collapsed') ? 39 : dock.offsetHeight) : 0;
-  const padX = 64, padT = 52, padB = dockH + 30;
-  const availW = Math.max(80, W - padX * 2);
-  const availH = Math.max(80, H - padT - padB);
-  const scale = Math.min(availW / spanX, availH / spanY);
-  const offX = (W - spanX * scale) / 2;
-  const offY = padT + (availH - spanY * scale) / 2;
-  const PX = (lng) => offX + (lng - lngMin) * kx * scale;
-  const PY = (lat) => offY + (latMax - lat) * scale;
+  const src = tileSource();
+  let z = src.maxZoom || 19;
+  for (; z > 2; z--) {
+    const w = Math.abs(lngToWorldX(lngMax, z) - lngToWorldX(lngMin, z));
+    const h = Math.abs(latToWorldY(latMin, z) - latToWorldY(latMax, z));
+    if (w <= availW && h <= availH) break;
+  }
+  v.zoom = z;
+  v.lat = (latMin + latMax) / 2;
+  v.lng = (lngMin + lngMax) / 2;
+  // 도크가 아래를 가리므로 중심을 그만큼 위로 올린다
+  const cy = latToWorldY(v.lat, z) + dockCover() / 2;
+  v.lat = worldYToLat(cy, z);
+  v.fitted = true;
+}
 
-  // 배경 격자
-  const grid = mk('g');
-  for (let gx = 0; gx <= W; gx += 60) grid.append(mk('line', { x1: gx, y1: 0, x2: gx, y2: H, stroke: '#e2e6ec', 'stroke-width': 1 }));
-  for (let gy = 0; gy <= H; gy += 60) grid.append(mk('line', { x1: 0, y1: gy, x2: W, y2: gy, stroke: '#e2e6ec', 'stroke-width': 1 }));
-  svg.append(grid);
+/** 화면 좌표 ↔ 지리 좌표 변환기 */
+function makeProjector(W, H) {
+  const v = mapView();
+  const cx = lngToWorldX(v.lng, v.zoom), cy = latToWorldY(v.lat, v.zoom);
+  const originX = cx - W / 2, originY = cy - H / 2;
+  return {
+    zoom: v.zoom, originX, originY,
+    x: (lng) => lngToWorldX(lng, v.zoom) - originX,
+    y: (lat) => latToWorldY(lat, v.zoom) - originY,
+    lng: (px) => worldXToLng(px + originX, v.zoom),
+    lat: (py) => worldYToLat(py + originY, v.zoom),
+  };
+}
 
+/** 내장 타일 지도 렌더링 (카카오 SDK 가 없을 때) */
+function renderLocalMap() {
+  const host = $('#map');
+  if (!host) return;
+  const W = host.clientWidth || 900, H = host.clientHeight || 600;
+  const v = mapView();
+  if (!v.fitted) fitViewToData();
+
+  const src = tileSource();
+  const P = makeProjector(W, H);
+
+  /* --- 레이어 준비 (매번 새로 만들지 않고 재사용해야 팬/줌이 부드럽다) --- */
+  let tileLayer = $('#mapTiles'), svg = $('#mapOverlay'), chrome = $('#mapChrome');
+  const NS = 'http://www.w3.org/2000/svg';
+  if (!tileLayer) {
+    host.textContent = '';
+    host.style.position = 'absolute';
+    tileLayer = el('div', { id: 'mapTiles', class: 'tile-layer' });
+    svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('id', 'mapOverlay');
+    svg.setAttribute('class', 'map-overlay');
+    chrome = el('div', { id: 'mapChrome' });
+    host.append(tileLayer, svg, chrome);
+    attachMapInteractions(host);
+  }
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+
+  /* --- 타일 --- */
+  tileLayer.textContent = '';
+  if (src.url) {
+    const n = Math.pow(2, P.zoom);
+    const x0 = Math.floor(P.originX / TILE_SIZE), x1 = Math.floor((P.originX + W) / TILE_SIZE);
+    const y0 = Math.floor(P.originY / TILE_SIZE), y1 = Math.floor((P.originY + H) / TILE_SIZE);
+    for (let ty = y0; ty <= y1; ty++) {
+      if (ty < 0 || ty >= n) continue;
+      for (let tx = x0; tx <= x1; tx++) {
+        const wx = ((tx % n) + n) % n;                 // 경도 방향은 순환
+        const img = el('img', {
+          class: 'tile', loading: 'eager', decoding: 'async', alt: '',
+          src: src.url.replace('{z}', P.zoom).replace('{x}', wx).replace('{y}', ty),
+        });
+        img.style.left = (tx * TILE_SIZE - P.originX) + 'px';
+        img.style.top = (ty * TILE_SIZE - P.originY) + 'px';
+        img.addEventListener('error', () => { img.style.visibility = 'hidden'; markTileFailure(); });
+        tileLayer.append(img);
+      }
+    }
+  }
+
+  /* --- 경로·마커 오버레이 --- */
+  svg.textContent = '';
+  const mk = (tag, attrs = {}) => {
+    const nEl = document.createElementNS(NS, tag);
+    for (const [k, val] of Object.entries(attrs)) nEl.setAttribute(k, val);
+    return nEl;
+  };
   const sol = RT.solution;
-  const dx = PX(S.depot.lng), dy = PY(S.depot.lat);
+  const dx = P.x(S.depot.lng), dy = P.y(S.depot.lat);
 
-  /* 경로 폴리라인 — 실제 지도와 동일하게 흰색 케이싱 위에 본선을 얹는다 */
   if (sol) {
     sol.routes.forEach((rt, ri) => {
       if (!rt.seq.length) return;
       const dim = RT.focusVehicle !== null && RT.focusVehicle !== ri;
       const st = routeStyle(rt);
-      const pathPts = [[dx, dy], ...rt.seq.map((si) => [PX(S.stops[si].lng), PY(S.stops[si].lat)])];
-      if (S.options.returnToDepot) pathPts.push([dx, dy]);
+      const pathPts = (rt.path && rt.path.length)
+        ? rt.path.map(([la, ln]) => [P.x(ln), P.y(la)])
+        : [[dx, dy], ...rt.seq.map((si) => [P.x(S.stops[si].lng), P.y(S.stops[si].lat)]),
+           ...(S.options.returnToDepot ? [[dx, dy]] : [])];
       const d = pathPts.map(([x, y], k) => `${k ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
       const dash = st.pattern.dash ? { 'stroke-dasharray': st.pattern.dash } : {};
       svg.append(mk('path', { d, fill: 'none', stroke: '#fff', 'stroke-width': 7,
@@ -2571,10 +2726,10 @@ function renderFallbackMap() {
     });
   }
 
-  /* 납품처 마커 */
   const drawStop = (si, label, color, dim, focus) => {
     const s = S.stops[si];
-    const x = PX(s.lng), y = PY(s.lat);
+    const x = P.x(s.lng), y = P.y(s.lat);
+    if (x < -40 || y < -40 || x > W + 40 || y > H + 40) return;   // 화면 밖은 그리지 않는다
     const g = mk('g', { style: 'cursor:pointer', opacity: dim ? 0.3 : 1 });
     g.append(mk('circle', { cx: x, cy: y, r: focus ? 13 : 11, fill: color, stroke: '#fff', 'stroke-width': 2.5 }));
     const t = mk('text', { x, y: y + 4, 'text-anchor': 'middle', 'font-size': 10.5,
@@ -2598,41 +2753,127 @@ function renderFallbackMap() {
     S.stops.forEach((_, i) => drawStop(i, String(i + 1), '#8b93a1', false, false));
   }
 
-  /* 차고지 */
-  const dg = mk('g');
-  dg.append(mk('rect', { x: dx - 13, y: dy - 13, width: 26, height: 26, rx: 6,
-    fill: '#0f172a', stroke: '#fff', 'stroke-width': 2.5 }));
-  const dt = mk('text', { x: dx, y: dy + 5, 'text-anchor': 'middle', 'font-size': 13,
-    'font-family': 'inherit', 'pointer-events': 'none' });
-  dt.textContent = '🏭';
-  dg.append(dt);
-  const dtitle = mk('title');
-  dtitle.textContent = `${S.depot.name} (차고지)`;
-  dg.append(dtitle);
-  svg.append(dg);
+  // 차고지
+  if (dx > -40 && dy > -40 && dx < W + 40 && dy < H + 40) {
+    const dg = mk('g');
+    dg.append(mk('rect', { x: dx - 13, y: dy - 13, width: 26, height: 26, rx: 6,
+      fill: '#0f172a', stroke: '#fff', 'stroke-width': 2.5 }));
+    const dt = mk('text', { x: dx, y: dy + 5, 'text-anchor': 'middle', 'font-size': 13,
+      'font-family': 'inherit', 'pointer-events': 'none' });
+    dt.textContent = '🏭';
+    dg.append(dt);
+    const dtitle = mk('title');
+    dtitle.textContent = `${S.depot.name} (차고지)`;
+    dg.append(dtitle);
+    svg.append(dg);
+  }
 
-  /* 축척 막대 — 간이 표시라도 거리 감각은 주어야 한다 */
-  const barPx = Math.min(140, W * 0.18);
-  // scale 은 "위도 1도당 px" 이므로 px → 도 → km 로 바로 환산된다 (경도축의 kx 는 상쇄)
-  const km = barPx / scale * 111.32;
-  const bx = 18, by = padT + availH + 16;
-  svg.append(mk('line', { x1: bx, y1: by, x2: bx + barPx, y2: by, stroke: '#4b5563', 'stroke-width': 2 }));
-  svg.append(mk('line', { x1: bx, y1: by - 4, x2: bx, y2: by + 4, stroke: '#4b5563', 'stroke-width': 2 }));
-  svg.append(mk('line', { x1: bx + barPx, y1: by - 4, x2: bx + barPx, y2: by + 4, stroke: '#4b5563', 'stroke-width': 2 }));
-  const sc = mk('text', { x: bx, y: by - 8, 'font-size': 10.5, fill: '#4b5563', 'font-family': 'inherit' });
-  sc.textContent = `약 ${km < 1 ? km.toFixed(2) : km.toFixed(1)} km`;
-  svg.append(sc);
+  /* --- 줌 버튼 · 축척 · 출처 --- */
+  chrome.textContent = '';
+  const zoomBtn = (label, delta, title) => el('button', {
+    class: 'map-zoom-btn', text: label, title,
+    onclick: (e) => { e.stopPropagation(); zoomBy(delta); },
+  });
+  chrome.append(el('div', { class: 'map-zoom' },
+    zoomBtn('+', 1, '확대'), zoomBtn('−', -1, '축소'),
+    el('button', { class: 'map-zoom-btn', text: '⤢', title: '전체 보기',
+      onclick: (e) => { e.stopPropagation(); fitViewToData(); renderLocalMap(); } })));
 
-  host.append(svg);
-  host.append(el('div', {
-    style: 'position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.94);'
-         + 'border:1px solid var(--ring);border-radius:20px;padding:4px 13px;font-size:11px;color:var(--text-2);'
-         + 'box-shadow:var(--shadow-1);white-space:nowrap',
-    text: '간이 지도 · 좌표 기반 상대 위치 (카카오 앱키를 등록하면 실제 지도로 바뀝니다)',
-  }));
+  // 축척 — 화면 100px 이 실제 몇 m 인가
+  const mPerPx = 156543.03392 * Math.cos(v.lat * Math.PI / 180) / Math.pow(2, P.zoom);
+  const targets = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000];
+  const meters = targets.find((t) => t / mPerPx >= 60) || targets[targets.length - 1];
+  const barPx = meters / mPerPx;
+  chrome.append(el('div', { class: 'map-scale', style: `width:${barPx.toFixed(0)}px` },
+    el('span', { text: meters >= 1000 ? `${meters / 1000} km` : `${meters} m` })));
+
+  if (src.attr) chrome.append(el('div', { class: 'map-attr', text: src.attr }));
 }
 
-/** 목록 탭에서 해당 납품처 행으로 스크롤 + 강조 */
+let tileFailures = 0;
+function markTileFailure() {
+  tileFailures++;
+  if (tileFailures === 12 && !alertState.has('tilefail')) {
+    showAlert('tilefail', 'warn', '지도 타일을 불러오지 못했습니다',
+      '인터넷 연결이나 사내 방화벽을 확인하세요. 타일 없이도 경로·순번·축척은 그대로 보입니다. '
+      + '설정 → 고급 설정에서 다른 타일 서버를 지정할 수 있습니다.');
+  }
+}
+
+function zoomBy(delta, anchorX, anchorY) {
+  const host = $('#map');
+  if (!host) return;
+  const v = mapView();
+  const src = tileSource();
+  const W = host.clientWidth || 900, H = host.clientHeight || 600;
+  const next = clamp(v.zoom + delta, 3, src.maxZoom || 19);
+  if (next === v.zoom) return;
+  // 커서 아래 지점이 제자리에 있도록 중심을 보정한다
+  const ax = anchorX === undefined ? W / 2 : anchorX;
+  const ay = anchorY === undefined ? H / 2 : anchorY;
+  const P = makeProjector(W, H);
+  const anchorLng = P.lng(ax), anchorLat = P.lat(ay);
+  v.zoom = next;
+  const P2 = makeProjector(W, H);
+  const dxp = P2.x(anchorLng) - ax, dyp = P2.y(anchorLat) - ay;
+  const cx = lngToWorldX(v.lng, v.zoom) + dxp, cy = latToWorldY(v.lat, v.zoom) + dyp;
+  v.lng = worldXToLng(cx, v.zoom);
+  v.lat = worldYToLat(cy, v.zoom);
+  renderLocalMap();
+}
+
+/** 드래그 팬 · 휠 줌 · 더블클릭 확대 */
+function attachMapInteractions(host) {
+  let dragging = false, moved = 0, lastX = 0, lastY = 0;
+
+  host.addEventListener('mousedown', (e) => {
+    if (RT.picking) return;
+    if (e.target.closest('#mapChrome')) return;
+    dragging = true; moved = 0; lastX = e.clientX; lastY = e.clientY;
+    host.style.cursor = 'grabbing';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    moved += Math.abs(dx) + Math.abs(dy);
+    const v = mapView();
+    const cx = lngToWorldX(v.lng, v.zoom) - dx, cy = latToWorldY(v.lat, v.zoom) - dy;
+    v.lng = worldXToLng(cx, v.zoom);
+    v.lat = worldYToLat(cy, v.zoom);
+    renderLocalMap();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    host.style.cursor = '';
+  });
+
+  host.addEventListener('wheel', (e) => {
+    if (RT.picking) return;
+    e.preventDefault();
+    const r = host.getBoundingClientRect();
+    zoomBy(e.deltaY < 0 ? 1 : -1, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+
+  host.addEventListener('dblclick', (e) => {
+    if (RT.picking) return;
+    const r = host.getBoundingClientRect();
+    zoomBy(1, e.clientX - r.left, e.clientY - r.top);
+  });
+
+  // 지도에서 위치 찍기
+  host.addEventListener('click', (e) => {
+    if (!RT.picking || moved > 4) return;
+    if (e.target.closest('#mapChrome')) return;
+    const r = host.getBoundingClientRect();
+    const P = makeProjector(host.clientWidth, host.clientHeight);
+    handleMapPick(P.lat(e.clientY - r.top), P.lng(e.clientX - r.left));
+  });
+}
+
+
 function focusStopRow(idx) {
   const s = S.stops[idx];
   if (!s) return;
@@ -3450,13 +3691,20 @@ function renderWizEnv() {
   const dev = RT.devServer;
 
   if (isFile) {
-    setWizState('env', 'fail', 'file:// 로 열려 있어 지도가 동작하지 않습니다');
+    // 파일로 연 상태는 "고장"이 아니다. 내장 지도로 전부 동작하고,
+    // 카카오 지도 타일과 카카오 도로거리만 서버가 필요할 뿐이다.
+    setWizState('env', 'ok', '파일로 실행 중 — 내장 지도로 동작합니다');
     body.append(
       el('p', { class: 'hint', style: 'margin-top:0',
-        html: '카카오맵 SDK는 <b>등록된 도메인</b>에서만 동작합니다. 파일을 직접 열면 도메인이 없어 앱키를 넣어도 지도가 뜨지 않습니다.' }),
-      el('p', { class: 'field-label', style: 'margin-top:8px', text: '저장소 폴더에서 아래 명령을 실행하세요' }),
+        html: '지금 이대로 <b>최적화·타임라인·순서표·CSV</b> 가 모두 동작합니다. 지도도 내장 타일 지도로 표시됩니다.' }),
+      el('div', { class: 'banner', 'data-tone': 'info', style: 'margin-top:9px;box-shadow:none' },
+        el('span', { class: 'banner-ico', text: 'ℹ️' }),
+        el('span', {}, el('b', { text: '아래 두 가지만 서버가 필요합니다' }),
+          el('span', { html: '① <b>카카오 지도 타일</b>과 장소 검색 — 카카오 SDK 가 등록된 도메인에서만 동작합니다<br>'
+            + '② <b>카카오 실제 도로거리</b> — 카카오모빌리티 API 가 브라우저 직접 호출을 허용하지 않습니다' }))),
+      el('p', { class: 'field-label', style: 'margin-top:10px', text: '필요하면 저장소 폴더에서 실행하세요' }),
       copyRow('node tools/dev-server.mjs'),
-      el('p', { class: 'hint', html: 'Windows 는 <code>start.bat</code>, macOS·Linux 는 <code>./start.sh</code> 를 더블클릭해도 됩니다. 실행하면 열어야 할 주소가 표시됩니다.' }),
+      el('p', { class: 'hint', html: 'Windows 는 <code>start.bat</code>, macOS·Linux 는 <code>start.sh</code> 를 더블클릭해도 됩니다.' }),
     );
     return;
   }
@@ -3698,6 +3946,7 @@ function invalidateSolution() {
   RT.solution = null;
   RT.solutionMeta = null;
   RT.focusVehicle = null;
+  if (RT.view) RT.view.fitted = false;   // 데이터가 바뀌었으니 지도 범위를 다시 맞춘다
   RT.popup?.setMap(null); RT.popup = null;
 }
 
@@ -4224,7 +4473,12 @@ async function doOptimize() {
     RT.suppressFit = false;
     renderAll();
     updateCacheStat();
-    if (!RT.sdkReady) setTimeout(renderFallbackMap, 240);   // 도크가 열린 뒤 크기 재계산
+    // 최적화 직후에는 결과 전체가 보이도록 지도 범위를 다시 맞춘다
+    // (카카오 지도 경로의 setBounds 와 같은 동작)
+    if (!RT.sdkReady) {
+      if (RT.view) RT.view.fitted = false;
+      setTimeout(renderLocalMap, 240);   // 도크가 열린 뒤 크기 재계산
+    }
     switchTab('result');
     setDock(true);
 
@@ -4352,7 +4606,7 @@ function bindEvents() {
     switchDock(t.dataset.dock);
     if ($('#dock').classList.contains('is-collapsed')) setDock(true);
   }));
-  const afterDockResize = () => setTimeout(() => { if (!RT.sdkReady) renderFallbackMap(); }, 220);
+  const afterDockResize = () => setTimeout(() => { if (!RT.sdkReady) renderLocalMap(); }, 220);
   $('#btnDockToggle').addEventListener('click', () => {
     setDock($('#dock').classList.contains('is-collapsed'));
     afterDockResize();
@@ -4366,7 +4620,7 @@ function bindEvents() {
   });
   $('#btnToggleSidebar').addEventListener('click', () => {
     $('#appBody').classList.toggle('sidebar-collapsed');
-    setTimeout(() => { RT.map?.relayout(); if (!RT.sdkReady) renderFallbackMap(); }, 220);
+    setTimeout(() => { RT.map?.relayout(); if (!RT.sdkReady) renderLocalMap(); }, 220);
   });
 
   /* --- 모달 닫기 --- */
@@ -4494,6 +4748,23 @@ function bindEvents() {
   $('#cfgProxy').value = S.settings.proxyUrl;
   $('#cfgDetour').value = String(S.settings.detour);
   $('#cfgProxy').addEventListener('change', (e) => { S.settings.proxyUrl = e.target.value.trim(); saveState(); });
+
+  /* 지도 타일 */
+  const syncTiles = () => { $('#tilesCustomField').hidden = S.settings.tiles !== 'custom'; };
+  const applyTiles = () => { dismissAlert('tilefail'); if (!RT.sdkReady) renderLocalMap(); };
+  $('#cfgTiles').value = S.settings.tiles || 'osm';
+  $('#cfgTilesUrl').value = S.settings.tilesCustom || '';
+  $('#cfgTilesAttr').value = S.settings.tilesAttr || '';
+  syncTiles();
+  $('#cfgTiles').addEventListener('change', (e) => {
+    S.settings.tiles = e.target.value; syncTiles(); saveState(); applyTiles();
+  });
+  $('#cfgTilesUrl').addEventListener('change', (e) => {
+    S.settings.tilesCustom = e.target.value.trim(); saveState(); applyTiles();
+  });
+  $('#cfgTilesAttr').addEventListener('change', (e) => {
+    S.settings.tilesAttr = e.target.value.trim(); saveState(); applyTiles();
+  });
   $('#cfgDetour').addEventListener('change', (e) => {
     S.settings.detour = clamp(num(e.target.value, 1.35), 1, 3);
     e.target.value = String(S.settings.detour);
@@ -4588,7 +4859,7 @@ function bindEvents() {
     RT.map?.relayout();
     if (RT.sdkReady) return;
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(renderFallbackMap, 150);   // SVG 는 리사이즈 시 재계산 필요
+    resizeTimer = setTimeout(() => { if (RT.view) RT.view.fitted = false; renderLocalMap(); }, 150);   // SVG 는 리사이즈 시 재계산 필요
   });
   window.addEventListener('beforeunload', () => { if (RT.optimizing) RT.cancelFlag = true; });
 }
@@ -4600,6 +4871,9 @@ function updateCacheStat() {
 /** 도로거리 + 프록시 조합일 때만 프록시 실행 안내를 띄운다 */
 function syncProxyHint() {
   if (S.settings.distMode !== 'road') { dismissAlert('proxyhint'); return; }
+  // 파일로 연 상태에서는 도로거리를 쓸 방법이 없다. 설정 탭 1단계가 이미 설명하므로
+  // 지도 위에 배너까지 띄우면 "고장난 것처럼" 보이기만 한다.
+  if (location.protocol === 'file:') { dismissAlert('proxyhint'); return; }
   if (S.settings.transport === 'proxy') {
     showAlert('proxyhint', 'info', '별도 프록시가 필요합니다',
       '카카오모빌리티 API는 CORS를 허용하지 않습니다.<br>'
@@ -4630,6 +4904,9 @@ window.__saveState = saveState;
 window.__handleMapPick = handleMapPick;
 window.__routeStyle = routeStyle;
 window.__renderWizard = renderWizard;
+window.__renderLocalMap = renderLocalMap;
+window.__makeProjector = makeProjector;
+window.__zoomBy = zoomBy;
 window.__checkMapKey = checkMapKey;
 window.__checkNaviKey = checkNaviKey;
 window.__detectDevServer = detectDevServer;
@@ -4679,9 +4956,12 @@ window.__vehicleOf = vehicleOf;
     }
     renderWizard();
   } else {
-    showAlert('nokey', 'info', '카카오 JavaScript 앱키를 등록하세요',
-      '설정 탭의 <b>설정 마법사</b>가 단계별로 안내합니다. '
-      + '키가 없어도 CSV 입력·최적화·결과표는 동작하며, 지도는 간이 지도로 대체됩니다.');
+    // 키가 없어도 앱은 온전히 동작한다. 경고가 아니라 안내로 띄운다.
+    if (location.protocol !== 'file:') {
+      showAlert('nokey', 'info', '내장 지도로 동작 중입니다',
+        '카카오 지도 타일과 장소 검색을 쓰려면 설정 탭에서 앱키를 등록하세요. '
+        + '지금도 최적화·타임라인·순서표·CSV 는 모두 동작합니다.');
+    }
   }
 
   syncProxyHint();
