@@ -1255,6 +1255,7 @@ async function initMap() {
   try {
     await loadKakaoSdk(key);
     const kakao = window.kakao;
+    $('#map').textContent = '';          // 간이 지도 잔여 요소 제거
     RT.map = new kakao.maps.Map($('#map'), {
       center: new kakao.maps.LatLng(S.depot.lat, S.depot.lng),
       level: 8,
@@ -2076,7 +2077,7 @@ function makeMarkerEl({ label, color, title, isDepot, warn, dim, focus }) {
 
 function renderMap() {
   renderLegend();                       // 범례는 지도 로드 여부와 무관하게 표시
-  if (!RT.map || !RT.sdkReady) return;
+  if (!RT.map || !RT.sdkReady) { renderFallbackMap(); return; }
   const kakao = window.kakao;
   clearMapLayers();
 
@@ -2165,6 +2166,151 @@ function renderMap() {
 
   if (any && !RT.suppressFit) RT.map.setBounds(bounds, 60, 60, 60, 60);
   RT.suppressFit = false;
+}
+
+/* ---------------------------------------------------------------------------
+ * 간이 지도 (카카오 SDK 미로드 시)
+ * 지도 타일은 없지만 좌표를 등거리원통도법으로 투영해 상대 위치·경로를 보여준다.
+ * API 키 없이도 배차 결과를 검증할 수 있게 하려는 것.
+ * ------------------------------------------------------------------------- */
+function renderFallbackMap() {
+  const host = $('#map');
+  if (!host) return;
+  host.textContent = '';
+
+  const W = host.clientWidth || 900, H = host.clientHeight || 600;
+  const pts = [{ lat: S.depot.lat, lng: S.depot.lng, depot: true },
+               ...S.stops.map((s, i) => ({ lat: s.lat, lng: s.lng, i }))];
+  if (!pts.length) return;
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const mk = (tag, attrs = {}) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return n;
+  };
+  const svg = mk('svg', { width: W, height: H, style: 'display:block;background:#eef1f5' });
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', '좌표 기반 간이 배송경로 표시');
+
+  // 등거리원통도법 — 위도대에 맞춰 경도를 축소해 가로세로 비율을 맞춘다
+  const latMin = Math.min(...pts.map((p) => p.lat)), latMax = Math.max(...pts.map((p) => p.lat));
+  const lngMin = Math.min(...pts.map((p) => p.lng)), lngMax = Math.max(...pts.map((p) => p.lng));
+  const kx = Math.cos((latMin + latMax) / 2 * Math.PI / 180);
+  const spanX = Math.max(1e-6, (lngMax - lngMin) * kx);
+  const spanY = Math.max(1e-6, latMax - latMin);
+  // 하단 도크가 지도를 덮으므로 그만큼 아래 여백을 비워 마커가 가려지지 않게 한다
+  const dock = $('#dock');
+  const dockH = dock ? (dock.classList.contains('is-collapsed') ? 39 : dock.offsetHeight) : 0;
+  const padX = 64, padT = 52, padB = dockH + 30;
+  const availW = Math.max(80, W - padX * 2);
+  const availH = Math.max(80, H - padT - padB);
+  const scale = Math.min(availW / spanX, availH / spanY);
+  const offX = (W - spanX * scale) / 2;
+  const offY = padT + (availH - spanY * scale) / 2;
+  const PX = (lng) => offX + (lng - lngMin) * kx * scale;
+  const PY = (lat) => offY + (latMax - lat) * scale;
+
+  // 배경 격자
+  const grid = mk('g');
+  for (let gx = 0; gx <= W; gx += 60) grid.append(mk('line', { x1: gx, y1: 0, x2: gx, y2: H, stroke: '#e2e6ec', 'stroke-width': 1 }));
+  for (let gy = 0; gy <= H; gy += 60) grid.append(mk('line', { x1: 0, y1: gy, x2: W, y2: gy, stroke: '#e2e6ec', 'stroke-width': 1 }));
+  svg.append(grid);
+
+  const sol = RT.solution;
+  const dx = PX(S.depot.lng), dy = PY(S.depot.lat);
+
+  /* 경로 폴리라인 — 실제 지도와 동일하게 흰색 케이싱 위에 본선을 얹는다 */
+  if (sol) {
+    sol.routes.forEach((rt, ri) => {
+      if (!rt.seq.length) return;
+      const dim = RT.focusVehicle !== null && RT.focusVehicle !== ri;
+      const st = routeStyle(rt);
+      const pathPts = [[dx, dy], ...rt.seq.map((si) => [PX(S.stops[si].lng), PY(S.stops[si].lat)])];
+      if (S.options.returnToDepot) pathPts.push([dx, dy]);
+      const d = pathPts.map(([x, y], k) => `${k ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+      const dash = st.pattern.dash ? { 'stroke-dasharray': st.pattern.dash } : {};
+      svg.append(mk('path', { d, fill: 'none', stroke: '#fff', 'stroke-width': 7,
+        'stroke-opacity': dim ? 0.2 : 0.9, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+      svg.append(mk('path', { d, fill: 'none', stroke: st.color, 'stroke-width': 3.5,
+        'stroke-opacity': dim ? 0.22 : 0.95, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', ...dash }));
+    });
+  }
+
+  /* 납품처 마커 */
+  const drawStop = (si, label, color, dim, focus) => {
+    const s = S.stops[si];
+    const x = PX(s.lng), y = PY(s.lat);
+    const g = mk('g', { style: 'cursor:pointer', opacity: dim ? 0.3 : 1 });
+    g.append(mk('circle', { cx: x, cy: y, r: focus ? 13 : 11, fill: color, stroke: '#fff', 'stroke-width': 2.5 }));
+    const t = mk('text', { x, y: y + 4, 'text-anchor': 'middle', 'font-size': 10.5,
+      'font-weight': 700, fill: '#fff', 'font-family': 'inherit', 'pointer-events': 'none' });
+    t.textContent = label;
+    g.append(t);
+    const title = mk('title');
+    title.textContent = `${s.name}${s.addr ? ' · ' + s.addr : ''}`;
+    g.append(title);
+    g.addEventListener('click', () => { switchTab('stops'); focusStopRow(si); });
+    svg.append(g);
+  };
+
+  if (sol) {
+    sol.routes.forEach((rt, ri) => {
+      const dim = RT.focusVehicle !== null && RT.focusVehicle !== ri;
+      const st = routeStyle(rt);
+      rt.seq.forEach((si, k) => drawStop(si, String(k + 1), st.color, dim, RT.focusVehicle === ri));
+    });
+  } else {
+    S.stops.forEach((_, i) => drawStop(i, String(i + 1), '#8b93a1', false, false));
+  }
+
+  /* 차고지 */
+  const dg = mk('g');
+  dg.append(mk('rect', { x: dx - 13, y: dy - 13, width: 26, height: 26, rx: 6,
+    fill: '#0f172a', stroke: '#fff', 'stroke-width': 2.5 }));
+  const dt = mk('text', { x: dx, y: dy + 5, 'text-anchor': 'middle', 'font-size': 13,
+    'font-family': 'inherit', 'pointer-events': 'none' });
+  dt.textContent = '🏭';
+  dg.append(dt);
+  const dtitle = mk('title');
+  dtitle.textContent = `${S.depot.name} (차고지)`;
+  dg.append(dtitle);
+  svg.append(dg);
+
+  /* 축척 막대 — 간이 표시라도 거리 감각은 주어야 한다 */
+  const barPx = Math.min(140, W * 0.18);
+  // scale 은 "위도 1도당 px" 이므로 px → 도 → km 로 바로 환산된다 (경도축의 kx 는 상쇄)
+  const km = barPx / scale * 111.32;
+  const bx = 18, by = padT + availH + 16;
+  svg.append(mk('line', { x1: bx, y1: by, x2: bx + barPx, y2: by, stroke: '#4b5563', 'stroke-width': 2 }));
+  svg.append(mk('line', { x1: bx, y1: by - 4, x2: bx, y2: by + 4, stroke: '#4b5563', 'stroke-width': 2 }));
+  svg.append(mk('line', { x1: bx + barPx, y1: by - 4, x2: bx + barPx, y2: by + 4, stroke: '#4b5563', 'stroke-width': 2 }));
+  const sc = mk('text', { x: bx, y: by - 8, 'font-size': 10.5, fill: '#4b5563', 'font-family': 'inherit' });
+  sc.textContent = `약 ${km < 1 ? km.toFixed(2) : km.toFixed(1)} km`;
+  svg.append(sc);
+
+  host.append(svg);
+  host.append(el('div', {
+    style: 'position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.94);'
+         + 'border:1px solid var(--ring);border-radius:20px;padding:4px 13px;font-size:11px;color:var(--text-2);'
+         + 'box-shadow:var(--shadow-1);white-space:nowrap',
+    text: '간이 지도 · 좌표 기반 상대 위치 (카카오 앱키를 등록하면 실제 지도로 바뀝니다)',
+  }));
+}
+
+/** 목록 탭에서 해당 납품처 행으로 스크롤 + 강조 */
+function focusStopRow(idx) {
+  const s = S.stops[idx];
+  if (!s) return;
+  const rows = $$('#stopsList .list-item');
+  for (const r of rows) {
+    if (r.querySelector('.list-main b')?.textContent === s.name) {
+      r.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      r.classList.add('is-active');
+      setTimeout(() => r.classList.remove('is-active'), 1600);
+      break;
+    }
+  }
 }
 
 function showStopPopup(stopIdx, routeIdx, k) {
@@ -2261,8 +2407,8 @@ function renderLegend() {
 
 /* --- 지도 알림 배너 --- */
 const alertState = new Map();
-function showAlert(id, tone, title, html) {
-  alertState.set(id, { tone, title, html });
+function showAlert(id, tone, title, html, action) {
+  alertState.set(id, { tone, title, html, action });
   renderAlerts();
 }
 function dismissAlert(id) { alertState.delete(id); renderAlerts(); }
@@ -2271,9 +2417,17 @@ function renderAlerts() {
   box.textContent = '';
   for (const [id, a] of alertState) {
     const ico = { warn: '⚠️', crit: '⛔', info: 'ℹ️', good: '✅' }[a.tone] || 'ℹ️';
+    const body = el('span', {}, el('b', { text: a.title }), el('span', { html: a.html }));
+    if (a.action) {
+      body.append(el('button', {
+        class: 'btn btn-sm', style: 'margin-top:7px',
+        text: a.action.label,
+        onclick: () => { dismissAlert(id); a.action.onClick(); },
+      }));
+    }
     box.append(el('div', { class: 'banner', 'data-tone': a.tone },
       el('span', { class: 'banner-ico', text: ico }),
-      el('span', {}, el('b', { text: a.title }), el('span', { html: a.html })),
+      body,
       el('button', { class: 'banner-close', text: '✕', onclick: () => dismissAlert(id) }),
     ));
   }
@@ -3286,6 +3440,7 @@ async function doOptimize() {
     RT.suppressFit = false;
     renderAll();
     updateCacheStat();
+    if (!RT.sdkReady) setTimeout(renderFallbackMap, 240);   // 도크가 열린 뒤 크기 재계산
     switchTab('result');
     setDock(true);
 
@@ -3304,7 +3459,22 @@ async function doOptimize() {
       console.error(err);
       const msg = decorateNaviError(err).message;
       toast(msg, 'crit', 9000);
-      showAlert('optfail', 'crit', '최적화에 실패했습니다', esc(msg));
+      // 도로 API에 닿지 못한 경우라면 직선거리로 즉시 재실행할 수 있게 한다
+      const transportFailed = S.settings.distMode === 'road'
+        && /CORS|프록시|연결|REST API 키|거부/.test(msg);
+      showAlert('optfail', 'crit', '최적화에 실패했습니다', esc(msg),
+        transportFailed ? {
+          label: '📐 직선거리 추정으로 실행',
+          onClick: () => {
+            S.settings.distMode = 'straight';
+            saveState();
+            $$('#segDistMode button[data-val]').forEach((b) =>
+              b.setAttribute('aria-pressed', String(b.dataset.val === 'straight')));
+            $('#roadCfg').style.display = 'none';
+            dismissAlert('proxyhint');
+            doOptimize();
+          },
+        } : null);
     }
   } finally {
     RT.optimizing = false;
@@ -3391,16 +3561,21 @@ function bindEvents() {
     switchDock(t.dataset.dock);
     if ($('#dock').classList.contains('is-collapsed')) setDock(true);
   }));
-  $('#btnDockToggle').addEventListener('click', () => setDock($('#dock').classList.contains('is-collapsed')));
+  const afterDockResize = () => setTimeout(() => { if (!RT.sdkReady) renderFallbackMap(); }, 220);
+  $('#btnDockToggle').addEventListener('click', () => {
+    setDock($('#dock').classList.contains('is-collapsed'));
+    afterDockResize();
+  });
   $('#btnDockExpand').addEventListener('click', () => {
     const d = $('#dock');
     d.classList.remove('is-collapsed');
     d.classList.toggle('is-expanded');
     $('#btnDockToggle').textContent = '▼';
+    afterDockResize();
   });
   $('#btnToggleSidebar').addEventListener('click', () => {
     $('#appBody').classList.toggle('sidebar-collapsed');
-    setTimeout(() => RT.map?.relayout(), 220);
+    setTimeout(() => { RT.map?.relayout(); if (!RT.sdkReady) renderFallbackMap(); }, 220);
   });
 
   /* --- 모달 닫기 --- */
@@ -3615,7 +3790,13 @@ function bindEvents() {
     }
   });
 
-  window.addEventListener('resize', () => RT.map?.relayout());
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    RT.map?.relayout();
+    if (RT.sdkReady) return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderFallbackMap, 150);   // SVG 는 리사이즈 시 재계산 필요
+  });
   window.addEventListener('beforeunload', () => { if (RT.optimizing) RT.cancelFlag = true; });
 }
 

@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node tools/kakao-proxy.mjs",
     "serve": "python3 -m http.server 3000",
-    "test": "node tests/e2e.mjs && node tests/e2e-map.mjs"
+    "test": "node tests/e2e.mjs && node tests/e2e-map.mjs && node tests/e2e-file.mjs"
   },
   "devDependencies": {
     "playwright": "^1.56.0"
