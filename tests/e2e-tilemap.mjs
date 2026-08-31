@@ -169,6 +169,40 @@ const fit = await pg.evaluate(() => {
 });
 check('마커가 하단 패널에 가려지지 않음', fit.hidden === 0, JSON.stringify(fit));
 
+/* --- 11. 타일이 실패하면 즉시 알리고 전환 버튼을 주는가 --- */
+await pg.unroute('**/tile.openstreetmap.org/**');
+await pg.route('**/tile.openstreetmap.org/**', (r) => r.abort());   // 방화벽에 막힌 상황 재현
+await pg.evaluate(() => { window.__RT.view.fitted = false; window.__renderLocalMap(); });
+await pg.waitForTimeout(900);
+const failUi = await pg.evaluate(() => {
+  const box = document.querySelector('#tileStatus');
+  return {
+    shown: !!box,
+    text: box?.querySelector('b')?.textContent || '',
+    buttons: [...(box?.querySelectorAll('button') || [])].map((b) => b.textContent),
+    markersStillThere: document.querySelectorAll('#mapOverlay circle').length,
+    scaleStillThere: !!document.querySelector('.map-scale'),
+  };
+});
+check('타일 실패를 즉시 알림', failUi.shown && failUi.text.includes('불러오지 못'), failUi.text);
+check('다른 서버로 전환 버튼 제공', failUi.buttons.length >= 2, failUi.buttons.join(' / '));
+check('타일이 없어도 경로·마커·축척 유지',
+  failUi.markersStillThere === 15 && failUi.scaleStillThere,
+  `마커 ${failUi.markersStillThere} · 축척 ${failUi.scaleStillThere}`);
+
+// 전환 버튼이 실제로 동작하는가
+await pg.evaluate(() => {
+  [...document.querySelectorAll('#tileStatus button')].find((b) => b.textContent.includes('타일 끄기'))?.click();
+});
+await pg.waitForTimeout(400);
+const afterSwitch = await pg.evaluate(() => ({
+  tiles: document.settings === undefined ? window.__S.settings.tiles : null,
+  status: !!document.querySelector('#tileStatus'),
+  markers: document.querySelectorAll('#mapOverlay circle').length,
+}));
+check('전환 버튼 동작 (타일 끄기)', afterSwitch.tiles === 'none' && !afterSwitch.status && afterSwitch.markers === 15,
+  JSON.stringify(afterSwitch));
+
 check('처리되지 않은 콘솔 에러 없음', errs.length === 0, errs.slice(0, 2).join(' | '));
 await pg.screenshot({ path: process.env.SHOT || '/tmp/tilemap.png' });
 await browser.close();

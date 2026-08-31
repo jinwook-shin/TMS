@@ -371,6 +371,14 @@ table{border-collapse:collapse;width:100%}
   position:absolute;bottom:2px;right:4px;font-size:9.5px;color:#4b5563;
   background:rgba(255,255,255,.72);padding:1px 5px;border-radius:3px;
 }
+.tile-status{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  max-width:340px;padding:12px 14px;border-radius:var(--radius);
+  background:rgba(255,255,255,.97);border:1px solid #f0d089;
+  box-shadow:var(--shadow-3);text-align:left;
+}
+.tile-status-head b{display:block;font-size:12.5px;color:#6b4c00}
+.tile-status-head span{display:block;font-size:11px;color:var(--text-3);margin-top:1px}
 .map-wrap.is-picking .tile-layer{cursor:crosshair}
 
 /* 지도 마커 (커스텀 오버레이) */
@@ -2678,6 +2686,8 @@ function renderLocalMap() {
 
   /* --- 타일 --- */
   tileLayer.textContent = '';
+  tileStat.ok = 0; tileStat.fail = 0;
+  $('#tileStatus')?.remove();
   if (src.url) {
     const n = Math.pow(2, P.zoom);
     const x0 = Math.floor(P.originX / TILE_SIZE), x1 = Math.floor((P.originX + W) / TILE_SIZE);
@@ -2692,7 +2702,8 @@ function renderLocalMap() {
         });
         img.style.left = (tx * TILE_SIZE - P.originX) + 'px';
         img.style.top = (ty * TILE_SIZE - P.originY) + 'px';
-        img.addEventListener('error', () => { img.style.visibility = 'hidden'; markTileFailure(); });
+        img.addEventListener('error', () => { img.style.visibility = 'hidden'; noteTile(false); });
+        img.addEventListener('load', () => noteTile(true));
         tileLayer.append(img);
       }
     }
@@ -2790,14 +2801,50 @@ function renderLocalMap() {
   if (src.attr) chrome.append(el('div', { class: 'map-attr', text: src.attr }));
 }
 
-let tileFailures = 0;
-function markTileFailure() {
-  tileFailures++;
-  if (tileFailures === 12 && !alertState.has('tilefail')) {
-    showAlert('tilefail', 'warn', '지도 타일을 불러오지 못했습니다',
-      '인터넷 연결이나 사내 방화벽을 확인하세요. 타일 없이도 경로·순번·축척은 그대로 보입니다. '
-      + '설정 → 고급 설정에서 다른 타일 서버를 지정할 수 있습니다.');
+/** 이번 렌더에서 타일이 몇 장 뜨고 몇 장 실패했는지 */
+const tileStat = { ok: 0, fail: 0, timer: null };
+
+function noteTile(success) {
+  if (success) tileStat.ok++; else tileStat.fail++;
+  // 여러 타일이 몰려 들어오므로 조금 모았다가 한 번만 표시를 갱신한다
+  clearTimeout(tileStat.timer);
+  tileStat.timer = setTimeout(renderTileStatus, 250);
+}
+
+/** 타일이 안 뜨면 지도 위에서 바로 다른 서버로 바꿀 수 있게 한다 */
+function renderTileStatus() {
+  const chrome = $('#mapChrome');
+  if (!chrome) return;
+  $('#tileStatus')?.remove();
+  const src = tileSource();
+  if (src.key === 'none') return;
+  if (tileStat.fail === 0) return;          // 잘 뜨면 아무것도 띄우지 않는다
+
+  const box = el('div', { id: 'tileStatus', class: 'tile-status' });
+  const total = tileStat.ok + tileStat.fail;
+  box.append(el('div', { class: 'tile-status-head' },
+    el('b', { text: tileStat.ok === 0 ? '지도 타일을 불러오지 못했습니다' : '일부 타일을 불러오지 못했습니다' }),
+    el('span', { text: `${src.name} · ${tileStat.fail}/${total}장 실패` })));
+  box.append(el('p', { class: 'hint', style: 'margin:4px 0 6px',
+    text: '인터넷 연결이나 사내 방화벽 때문일 수 있습니다. 다른 서버로 바꿔보세요 — 경로·순번·축척은 타일 없이도 그대로 보입니다.' }));
+
+  const row = el('div', { style: 'display:flex;gap:5px;flex-wrap:wrap' });
+  for (const t of TILE_SOURCES) {
+    if (t.key === src.key) continue;
+    row.append(el('button', {
+      class: 'btn btn-sm', text: t.key === 'none' ? '타일 끄기' : t.name.split(' ')[0],
+      onclick: () => {
+        S.settings.tiles = t.key; saveState();
+        if ($('#cfgTiles')) $('#cfgTiles').value = t.key;
+        tileStat.ok = 0; tileStat.fail = 0;
+        renderLocalMap();
+      },
+    }));
   }
+  row.append(el('button', { class: 'btn btn-sm', text: '다시 시도',
+    onclick: () => { tileStat.ok = 0; tileStat.fail = 0; renderLocalMap(); } }));
+  box.append(row);
+  chrome.append(box);
 }
 
 function zoomBy(delta, anchorX, anchorY) {
