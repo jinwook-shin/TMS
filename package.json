@@ -1,0 +1,15 @@
+{
+  "name": "tms-route-optimizer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "카카오맵 기반 최적 배송코스 도출 (TSP → CVRPTW)",
+  "type": "module",
+  "scripts": {
+    "start": "node tools/dev-server.mjs",
+    "proxy": "node tools/kakao-proxy.mjs",
+    "test": "node tests/e2e.mjs && node tests/e2e-map.mjs && node tests/e2e-file.mjs && node tests/e2e-server.mjs && node tests/e2e-zones.mjs && node tests/e2e-tilemap.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  }
+}
