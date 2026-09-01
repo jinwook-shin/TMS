@@ -344,6 +344,7 @@ function banner(port) {
   const origin = `http://localhost:${port}`;
   const rule = '═'.repeat(BOX_W);
   const key = restKey();
+  const moved = port !== DEFAULT_PORT;
   const out = [
     '',
     `╔${rule}╗`,
@@ -354,6 +355,13 @@ function banner(port) {
     boxLine('  ▸ 카카오 디벨로퍼스에 등록할 사이트 도메인'),
     boxLine(`      ${origin}`),
     boxLine('      내 애플리케이션 → 앱 설정 → 플랫폼 → Web'),
+    ...(moved ? [
+      boxLine(),
+      boxLine(`  ⚠ 포트 ${DEFAULT_PORT} 이 사용 중이라 ${port} 으로 열었습니다.`),
+      boxLine(`     카카오에 ${DEFAULT_PORT} 을 등록해 두셨다면 지도가 뜨지 않습니다.`),
+      boxLine(`     위 주소(${port})를 추가로 등록하거나, ${DEFAULT_PORT} 을 쓰는`),
+      boxLine('     다른 프로그램을 끄고 다시 실행하세요.'),
+    ] : []),
     boxLine(),
     boxLine(`  REST 키   ${key ? '.env 에서 로드됨 (브라우저에 노출 안 됨)' : '미설정 — 앱 설정 탭 또는 .env'}`),
     boxLine(`  길찾기    ${origin}/v1/*`),
