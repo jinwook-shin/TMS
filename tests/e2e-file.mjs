@@ -28,6 +28,26 @@ check('내장 지도 렌더링 (납품처 15 + 차고지)', fb.svg && fb.circles
 check('줌 컨트롤 · 축척 · 출처 표기', fb.zoomBtns===3 && !!fb.scale && fb.attr.includes('OpenStreetMap'),
   `줌버튼 ${fb.zoomBtns} · 축척 ${fb.scale} · ${fb.attr.slice(0,26)}`);
 
+// file:// 에서 마법사 2·3단계는 "실패"가 아니라 "해당 없음"이어야 한다
+await pg.click('.tab[data-tab="settings"]');
+await pg.waitForTimeout(300);
+const wiz = await pg.evaluate(() => ({
+  env: document.querySelector('#wizEnv').dataset.state,
+  map: document.querySelector('#wizMap').dataset.state,
+  navi: document.querySelector('#wizNavi').dataset.state,
+  mapSub: document.querySelector('#wizMapSub').textContent,
+  naviSub: document.querySelector('#wizNaviSub').textContent,
+  optional: document.querySelectorAll('.wiz-title .chip').length,
+  noRedSteps: document.querySelectorAll('.wiz-step[data-state="fail"]').length,
+}));
+check('file:// 에서 빨간 실패 단계 없음', wiz.noRedSteps === 0, `fail 상태 ${wiz.noRedSteps}개`);
+check('1단계 통과 · 2·3단계는 해당 없음',
+  wiz.env === 'ok' && wiz.map === 'na' && wiz.navi === 'na', JSON.stringify(wiz));
+check('2·3단계가 선택 사항으로 표시', wiz.optional === 2, `선택 배지 ${wiz.optional}개`);
+check('할 일이 없다고 안내', /할 일은 없|설정할 것이 없/.test(
+  await pg.textContent('#wizEnvBody') + await pg.textContent('#wizMapBody')));
+await pg.click('.tab[data-tab="stops"]');
+
 // 도로거리 모드 그대로 최적화 → 실패 후 폴백 버튼이 떠야 함
 await pg.click('#btnOptimize');
 await pg.waitForFunction(()=>document.querySelector('#progressModal').hidden && !window.__RT.optimizing,null,{timeout:60000});

@@ -515,6 +515,11 @@ table{border-collapse:collapse;width:100%}
 .wiz-step[data-state="ok"]{border-color:#a8dfa8}
 .wiz-step[data-state="fail"]{border-color:#f0b8b8}
 .wiz-step[data-state="checking"]{border-color:var(--accent)}
+.wiz-step[data-state="na"]{border-color:var(--line);background:var(--surface-2)}
+.wiz-step[data-state="na"] .wiz-num{background:var(--line-strong);color:var(--surface-1)}
+.wiz-step[data-state="na"] .wiz-num::after{content:"–"}
+.wiz-step[data-state="na"] .wiz-num > span{display:none}
+.wiz-step[data-state="na"] .wiz-title > span{color:var(--text-3)}
 .wiz-head{display:flex;align-items:center;gap:9px;padding:10px 12px}
 .wiz-num{
   width:22px;height:22px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
@@ -828,7 +833,7 @@ details#advSettings[open] > summary{margin-bottom:2px}
             <section class="wiz-step" id="wizMap" data-state="pending">
               <div class="wiz-head">
                 <span class="wiz-num">2</span>
-                <div class="wiz-title"><b>지도 · 주소검색</b><span id="wizMapSub">JavaScript 앱키가 필요합니다</span></div>
+                <div class="wiz-title"><b>지도 · 주소검색 <span class="chip">선택</span></b><span id="wizMapSub">확인 중…</span></div>
               </div>
               <div class="wiz-body" id="wizMapBody"></div>
             </section>
@@ -837,7 +842,7 @@ details#advSettings[open] > summary{margin-bottom:2px}
             <section class="wiz-step" id="wizNavi" data-state="pending">
               <div class="wiz-head">
                 <span class="wiz-num">3</span>
-                <div class="wiz-title"><b>실제 도로거리</b><span id="wizNaviSub">REST API 키가 필요합니다</span></div>
+                <div class="wiz-title"><b>실제 도로거리 <span class="chip">선택</span></b><span id="wizNaviSub">확인 중…</span></div>
               </div>
               <div class="wiz-body" id="wizNaviBody"></div>
             </section>
@@ -3740,10 +3745,10 @@ function renderWizEnv() {
   if (isFile) {
     // 파일로 연 상태는 "고장"이 아니다. 내장 지도로 전부 동작하고,
     // 카카오 지도 타일과 카카오 도로거리만 서버가 필요할 뿐이다.
-    setWizState('env', 'ok', '파일로 실행 중 — 내장 지도로 동작합니다');
+    setWizState('env', 'ok', '파일로 실행 중 — 설정할 것이 없습니다');
     body.append(
       el('p', { class: 'hint', style: 'margin-top:0',
-        html: '지금 이대로 <b>최적화·타임라인·순서표·CSV</b> 가 모두 동작합니다. 지도도 내장 타일 지도로 표시됩니다.' }),
+        html: '<b>아래 2·3단계는 건드리지 않으셔도 됩니다.</b> 지금 이대로 지도·최적화·타임라인·순서표·CSV 가 모두 동작합니다.' }),
       el('div', { class: 'banner', 'data-tone': 'info', style: 'margin-top:9px;box-shadow:none' },
         el('span', { class: 'banner-ico', text: 'ℹ️' }),
         el('span', {}, el('b', { text: '아래 두 가지만 서버가 필요합니다' }),
@@ -3787,6 +3792,20 @@ function renderWizMap() {
   const body = $('#wizMapBody');
   if (!body) return;
   body.textContent = '';
+
+  // 카카오 SDK 는 등록된 도메인에서만 동작한다. 파일로 연 상태에서는 아무리 키가
+  // 맞아도 뜨지 않으므로, 실패가 아니라 "이 방식에서는 해당 없음"으로 보여준다.
+  if (location.protocol === 'file:') {
+    setWizState('map', 'na', '파일로 연 상태에서는 쓸 수 없습니다 — 내장 지도가 대신 동작 중');
+    body.append(
+      el('p', { class: 'hint', style: 'margin-top:0',
+        html: '<b>지금 할 일은 없습니다.</b> 지도는 내장 타일 지도로 이미 동작하고 있습니다.' }),
+      el('p', { class: 'hint', style: 'margin-top:6px',
+        html: '카카오 지도 타일과 <b>장소·주소 검색</b>이 꼭 필요해지면, 1단계의 명령으로 서버를 띄운 뒤 '
+          + '다시 오세요. 그때 이 단계가 활성화됩니다.' }),
+    );
+    return;
+  }
 
   const input = el('input', {
     class: 'input', id: 'wizJsKey', autocomplete: 'off', type: 'text',
@@ -3891,6 +3910,21 @@ function renderWizNavi() {
   if (!body) return;
   body.textContent = '';
   const dev = RT.devServer;
+
+  // 카카오모빌리티 API 는 브라우저 직접 호출을 허용하지 않는다. 파일로 연 상태에서는
+  // 중계할 서버가 없으므로 실패가 아니라 "해당 없음"이다.
+  if (location.protocol === 'file:') {
+    setWizState('navi', 'na', '파일로 연 상태에서는 쓸 수 없습니다 — 직선거리 추정으로 동작');
+    body.append(
+      el('p', { class: 'hint', style: 'margin-top:0',
+        html: '<b>지금 할 일은 없습니다.</b> 직선거리에 우회계수를 곱한 추정으로 배차가 계산됩니다. '
+          + '순번·묶음은 실제와 크게 다르지 않고, 거리·시간 수치만 근사값입니다.' }),
+      el('p', { class: 'hint', style: 'margin-top:6px',
+        html: '실제 도로거리가 필요하면 1단계의 명령으로 서버를 띄우세요 — 카카오모빌리티 API 가 '
+          + '브라우저 직접 호출을 막기 때문에 중계할 서버가 있어야 합니다.' }),
+    );
+    return;
+  }
 
   if (S.settings.distMode !== 'road') {
     setWizState('navi', 'pending', '직선거리 모드입니다 — 도로거리를 쓰려면 전환하세요');
